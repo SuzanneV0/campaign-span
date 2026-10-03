@@ -28,7 +28,9 @@
   --radius: 14px;
   --radius-sm: 8px;
   --max: 1180px;
-  --font: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Instrument Sans: UI, body, nav and buttons. Bricolage Grotesque: display and hero headings. */
+  --font: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque", "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* channel identity colours */
   --ch-instagram: #C13584;
@@ -138,6 +140,11 @@ img, svg { max-width: 100%; display: block; }
 a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 h1, h2, h3, h4 { line-height: 1.15; margin: 0 0 .5em; letter-spacing: -.02em; }
+/* Display face for page titles, section headings, hero copy, prices and the wordmark */
+h1, h2, .feature-row h3, .price, .logo { font-family: var(--font-display); font-optical-sizing: auto; }
+h1 { letter-spacing: -.03em; }
+/* Inside the app, headings are UI labels, so they stay in the UI face */
+.app-view h2, .app-view h3, .toolbar h2, .proj-head h2, .dlg-head h2 { font-family: var(--font); }
 h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 800; }
 h2 { font-size: clamp(1.7rem, 3.4vw, 2.5rem); font-weight: 800; }
 h3 { font-size: 1.2rem; font-weight: 700; }

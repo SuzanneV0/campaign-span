@@ -348,7 +348,7 @@
           function () { return ['warn', 'Not reachable from this network. Excel export falls back to CSV (often a firewall or ad blocker)']; });
     });
     add('Web fonts (Google Fonts)', function () {
-      return fetchStatus('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400&display=swap')
+      return fetchStatus('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400&display=swap')
         .then(function (r) { return r.ok ? ['pass', 'Reachable'] : ['warn', 'Responded ' + r.status + '. Pages use the system font instead']; },
           function () { return ['warn', 'Not reachable. Pages fall back to the system font, nothing breaks']; });
     });

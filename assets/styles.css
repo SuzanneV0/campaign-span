@@ -1,30 +1,30 @@
 /* Campaign Span — shared site styles */
 :root {
-  --bg: #EFF1F3;
+  --bg: #F4EEEC;
   --surface: #FFFFFF;
-  --surface-2: #E5E8EB;
-  --surface-3: #D9DDE1;
-  --text: #272727;
-  --muted: #5F5D69;
-  --faint: #8E8C97;
-  --border: #D9DDE1;
-  --brand: #009FB7;
-  --brand-hover: #14B3CB;
-  --brand-ink: #272727;
-  --brand-soft: #D6EFF3;
-  --accent: #FED766;
-  --accent-soft: #FFF4CF;
+  --surface-2: #EADEDA;
+  --surface-3: #DFD0CB;
+  --text: #2E294E;
+  --muted: #5E5873;
+  --faint: #8E879E;
+  --border: #E0D3CF;
+  --brand: #D90368;
+  --brand-hover: #B8025A;
+  --brand-ink: #FFFFFF;
+  --brand-soft: #FBE0EC;
+  --accent: #FFD400;
+  --accent-soft: #FFF6CC;
   --ok: #1E8E5E;
   --ok-soft: #E2F4EB;
   --warn: #B7791F;
   --warn-soft: #FBF0DC;
   --danger: #C93C3C;
   --danger-soft: #FBE5E5;
-  --link: #006E80;
-  --accent-ink: #7A5C00;
-  --cta-bg: #272727;
-  --shadow: 0 1px 2px rgba(39,39,39,.06), 0 8px 24px rgba(39,39,39,.06);
-  --shadow-lg: 0 2px 6px rgba(39,39,39,.08), 0 24px 60px rgba(39,39,39,.12);
+  --link: #820263;
+  --accent-ink: #7A6000;
+  --cta-bg: #2E294E;
+  --shadow: 0 1px 2px rgba(46,41,78,.06), 0 8px 24px rgba(46,41,78,.06);
+  --shadow-lg: 0 2px 6px rgba(46,41,78,.08), 0 24px 60px rgba(46,41,78,.12);
   --radius: 14px;
   --radius-sm: 8px;
   --max: 1180px;
@@ -46,29 +46,29 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #1C1C1C;
-    --surface: #272727;
-    --surface-2: #303033;
-    --surface-3: #3B3B3F;
-    --text: #EFF1F3;
-    --muted: #A9A7B2;
-    --faint: #85838E;
-    --border: #3A3A3E;
-    --brand: #009FB7;
-    --brand-hover: #19B5CC;
-    --brand-ink: #1C1C1C;
-    --brand-soft: #0E3A41;
-    --accent: #FED766;
-    --accent-soft: #3D3521;
+    --bg: #1C1930;
+    --surface: #2E294E;
+    --surface-2: #38325C;
+    --surface-3: #443D6B;
+    --text: #F4EEEC;
+    --muted: #B9B2C9;
+    --faint: #8D86A3;
+    --border: #453F6A;
+    --brand: #D90368;
+    --brand-hover: #EC1A7B;
+    --brand-ink: #FFFFFF;
+    --brand-soft: #4A1838;
+    --accent: #FFD400;
+    --accent-soft: #3D3418;
     --ok: #4CC793;
     --ok-soft: #173327;
     --warn: #E5AE55;
     --warn-soft: #382B14;
     --danger: #F07474;
     --danger-soft: #3B1C1E;
-    --link: #3CC8DC;
-    --accent-ink: #FED766;
-    --cta-bg: #0E3A41;
+    --link: #FF7AB6;
+    --accent-ink: #FFD400;
+    --cta-bg: #820263;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
     --shadow-lg: 0 2px 6px rgba(0,0,0,.4), 0 24px 60px rgba(0,0,0,.5);
     --ch-instagram: #E66BAE;
@@ -85,29 +85,29 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: #1C1C1C;
-  --surface: #272727;
-  --surface-2: #303033;
-  --surface-3: #3B3B3F;
-  --text: #EFF1F3;
-  --muted: #A9A7B2;
-  --faint: #85838E;
-  --border: #3A3A3E;
-  --brand: #009FB7;
-  --brand-hover: #19B5CC;
-  --brand-ink: #1C1C1C;
-  --brand-soft: #0E3A41;
-  --accent: #FED766;
-  --accent-soft: #3D3521;
+  --bg: #1C1930;
+  --surface: #2E294E;
+  --surface-2: #38325C;
+  --surface-3: #443D6B;
+  --text: #F4EEEC;
+  --muted: #B9B2C9;
+  --faint: #8D86A3;
+  --border: #453F6A;
+  --brand: #D90368;
+  --brand-hover: #EC1A7B;
+  --brand-ink: #FFFFFF;
+  --brand-soft: #4A1838;
+  --accent: #FFD400;
+  --accent-soft: #3D3418;
   --ok: #4CC793;
   --ok-soft: #173327;
   --warn: #E5AE55;
   --warn-soft: #382B14;
   --danger: #F07474;
   --danger-soft: #3B1C1E;
-  --link: #3CC8DC;
-  --accent-ink: #FED766;
-  --cta-bg: #0E3A41;
+  --link: #FF7AB6;
+  --accent-ink: #FFD400;
+  --cta-bg: #820263;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
   --shadow-lg: 0 2px 6px rgba(0,0,0,.4), 0 24px 60px rgba(0,0,0,.5);
   --ch-instagram: #E66BAE;
@@ -373,8 +373,8 @@ a.card:hover { text-decoration: none; transform: translateY(-2px); border-color:
 }
 .cta-band h2 { color: #fff; }
 .cta-band p { color: rgba(255,255,255,.85); max-width: 560px; margin: 0 auto 24px; font-size: 1.1rem; }
-.cta-band .btn-primary { background: var(--accent); color: #272727; }
-.cta-band .btn-primary:hover { background: #FFE48F; }
+.cta-band .btn-primary { background: var(--accent); color: #2E294E; }
+.cta-band .btn-primary:hover { background: #FFE04D; }
 .cta-band .btn-ghost { color: #fff; border-color: rgba(255,255,255,.5); }
 .cta-band .btn-ghost:hover { background: rgba(255,255,255,.12); }
 

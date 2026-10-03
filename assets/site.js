@@ -1,4 +1,4 @@
-/* Content Span — shared header, footer, theme toggle */
+/* Campaign Span — shared header, footer, theme toggle */
 (function () {
   var LOGO =
     '<svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true">' +
@@ -19,7 +19,7 @@
   var header =
     '<a class="skip-link" href="#main">Skip to content</a>' +
     '<div class="container nav">' +
-      '<a class="logo" href="index.html" aria-label="Content Span home">' + LOGO + 'Content Span</a>' +
+      '<a class="logo" href="index.html" aria-label="Campaign Span home">' + LOGO + 'Campaign Span</a>' +
       '<ul class="nav-links" id="nav-links">' +
         '<li class="has-dropdown">' +
           '<button class="nav-trigger" aria-expanded="false" aria-controls="about-menu">About ' + CHEVRON + '</button>' +
@@ -52,13 +52,13 @@
   var footer =
     '<div class="container">' +
       '<div class="footer-grid">' +
-        '<div><a class="logo" href="index.html">' + LOGO + 'Content Span</a>' +
+        '<div><a class="logo" href="index.html">' + LOGO + 'Campaign Span</a>' +
           '<p class="muted" style="margin-top:12px;font-size:.92rem">The content calendar your whole team actually uses — from brief to published to proven.</p></div>' +
         '<div><h4>Product</h4><ul><li><a href="features.html">Features</a></li><li><a href="integrations.html">Integrations</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="demo.html">Demo mode</a></li></ul></div>' +
         '<div><h4>Teams</h4><ul><li><a href="roles.html#production">Production</a></li><li><a href="roles.html#social">Social media</a></li><li><a href="roles.html#brand">Brand services</a></li><li><a href="roles.html#sales">Sales</a></li><li><a href="roles.html#marketing">Marketing</a></li></ul></div>' +
         '<div><h4>Account</h4><ul><li><a href="login.html">Log in</a></li><li><a href="login.html#signup">Sign up</a></li></ul></div>' +
       '</div>' +
-      '<div class="footer-bottom"><span>© ' + new Date().getFullYear() + ' Content Span</span><span>Web · Desktop · iOS · Android</span></div>' +
+      '<div class="footer-bottom"><span>© ' + new Date().getFullYear() + ' Campaign Span</span><span>Web · Desktop · iOS · Android</span></div>' +
     '</div>';
 
   var h = document.querySelector('[data-site-header]');

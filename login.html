@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Log in or sign up — Content Span</title>
-  <meta name="description" content="Log in to Content Span or create a new workspace.">
+  <title>Log in or sign up — Campaign Span</title>
+  <meta name="description" content="Log in to Campaign Span or create a new workspace.">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +29,7 @@
 <main id="main">
   <div class="auth-wrap">
     <h1 style="font-size:2rem;text-align:center" id="auth-title">Welcome back</h1>
-    <p class="muted center" id="auth-sub" style="margin-bottom:28px">Log in to your Content Span workspace.</p>
+    <p class="muted center" id="auth-sub" style="margin-bottom:28px">Log in to your Campaign Span workspace.</p>
 
     <div class="auth-tabs" role="tablist" aria-label="Account">
       <button role="tab" id="tab-login" aria-selected="true" aria-controls="panel-login">Log in</button>
@@ -86,7 +86,7 @@
         panels[k].hidden = k !== which;
       });
       document.getElementById('auth-title').textContent = which === 'signup' ? 'Create your workspace' : 'Welcome back';
-      document.getElementById('auth-sub').textContent = which === 'signup' ? 'Start a 14-day free trial. No credit card required.' : 'Log in to your Content Span workspace.';
+      document.getElementById('auth-sub').textContent = which === 'signup' ? 'Start a 14-day free trial. No credit card required.' : 'Log in to your Campaign Span workspace.';
       msg.hidden = true;
     }
     tabs.login.addEventListener('click', function () { show('login'); history.replaceState(null, '', '#login'); });

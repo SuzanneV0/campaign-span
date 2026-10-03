@@ -129,6 +129,48 @@
     });
   }
 
+  // ---------- monetization ----------
+  // Platforms that pay creators directly. Amounts are estimates in USD, the currency these programs pay out in.
+  var MONETIZATION = {
+    youtube: { rpm: 4.5, share: .9, mix: { ads: .75, subs: .15, tips: .10, bonus: 0 }, programs: 'AdSense ads, channel memberships, Super Thanks' },
+    facebook: { rpm: 1.2, share: .6, mix: { ads: .70, subs: .15, tips: .15, bonus: 0 }, programs: 'In-stream ads, subscriptions, Stars' },
+    instagram: { rpm: .35, share: .4, mix: { ads: 0, subs: .35, tips: .25, bonus: .40 }, programs: 'Subscriptions, gifts, bonuses' },
+    tiktok: { rpm: .6, share: .5, mix: { ads: 0, subs: .10, tips: .30, bonus: .60 }, programs: 'Creator Rewards Program, LIVE gifts, subscriptions' },
+    x: { rpm: .25, share: .6, mix: { ads: .70, subs: .30, tips: 0, bonus: 0 }, programs: 'Creator ad revenue sharing, subscriptions' }
+  };
+  var REV_SOURCES = [['ads', 'Ad revenue'], ['subs', 'Subscriptions & memberships'], ['tips', 'Tips & gifts'], ['bonus', 'Bonuses & creator programs']];
+  var MONEY_CHANNELS = ENABLED.filter(function (c) { return MONETIZATION[c]; });
+  var revRand = rng(hash(ENV.company + ':revenue') || 7);
+  posts.forEach(function (p) {
+    var m = MONETIZATION[p.channel];
+    if (!m || p.status !== 'published' || !p.reach) return;
+    p.monetized = revRand() < m.share;
+    if (!p.monetized) return;
+    var total = p.reach / 1000 * m.rpm * (0.6 + revRand() * 0.8);
+    p.revenue = {};
+    REV_SOURCES.forEach(function (src) { p.revenue[src[0]] = Math.round(total * m.mix[src[0]] * 100) / 100; });
+  });
+  function revTotal(p) { return p.revenue ? REV_SOURCES.reduce(function (t, src) { return t + p.revenue[src[0]]; }, 0) : 0; }
+  function money(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  // Per-channel totals for published posts in [from, to)
+  function monetization(from, to) {
+    var rows = MONEY_CHANNELS.map(function (c) {
+      var r = { channel: c, posts: 0, monetized: 0, views: 0, revenue: 0, src: { ads: 0, subs: 0, tips: 0, bonus: 0 } };
+      posts.forEach(function (p) {
+        if (p.channel !== c || p.status !== 'published' || !p.reach || p.date < from || p.date >= to) return;
+        r.posts++;
+        if (!p.revenue) return;
+        r.monetized++; r.views += p.reach; r.revenue += revTotal(p);
+        REV_SOURCES.forEach(function (src) { r.src[src[0]] += p.revenue[src[0]]; });
+      });
+      r.rpm = r.views ? r.revenue / r.views * 1000 : 0;
+      return r;
+    });
+    var total = rows.reduce(function (t, r) { t.revenue += r.revenue; t.views += r.views; t.monetized += r.monetized; return t; }, { revenue: 0, views: 0, monetized: 0 });
+    total.rpm = total.views ? total.revenue / total.views * 1000 : 0;
+    return { rows: rows, total: total };
+  }
+
   // ---------- state ----------
   var state = {
     view: 'calendar',
@@ -543,6 +585,18 @@
           '<td class="num">' + b.reach.toLocaleString() + '</td><td class="num">' + pct(b.eng / b.reach) + (isEmail ? ' open' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>' +
       '<div class="btn-row" style="margin-top:14px"><button class="btn btn-primary btn-sm" type="button" data-export="xlsx">Export Excel report</button><button class="btn btn-ghost btn-sm" type="button" data-export="csv">Export CSV</button></div></div>';
+    if (MONEY_CHANNELS.length) {
+      var mon = monetization(from, TODAY), monPrev = monetization(addDays(TODAY, -60), from);
+      h += '<div class="panel" style="grid-column:1/-1"><h3>Monetization</h3><p class="sub">Estimated creator earnings from connected platforms, last 30 days (USD). Platforms report revenue 1\u20133 days late and may revise it.</p>' +
+        '<div class="kpi-row" style="margin-bottom:14px"><div class="kpi-tile"><small>Est. revenue</small><strong>' + money(mon.total.revenue) + '</strong>' + delta(mon.total.revenue, monPrev.total.revenue) + '</div>' +
+        '<div class="kpi-tile"><small>Blended RPM</small><strong>' + money(mon.total.rpm) + '</strong><span class="d">per 1,000 monetized views</span></div>' +
+        '<div class="kpi-tile"><small>Monetized posts</small><strong>' + mon.total.monetized + '</strong></div></div>' +
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>Channel</th><th>Programs</th><th class="num">Monetized posts</th><th class="num">Est. revenue</th><th class="num">RPM</th></tr></thead><tbody>' +
+        mon.rows.map(function (r) {
+          return '<tr><td><span class="chip c-' + r.channel + '">' + CHANNELS[r.channel] + '</span></td><td class="muted">' + esc(MONETIZATION[r.channel].programs) + '</td><td class="num">' + r.monetized + ' of ' + r.posts + '</td><td class="num">' + money(r.revenue) + '</td><td class="num">' + (r.views ? money(r.rpm) : '\u2014') + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div class="btn-row" style="margin-top:14px"><button class="btn btn-ghost btn-sm" type="button" data-export="csv-money">Export monetization CSV</button></div></div>';
+    }
     h += '</div>';
     view.innerHTML = h;
 
@@ -863,7 +917,7 @@
   function wireExportButton(b) {
     b.addEventListener('click', function () {
       exportMenu.hidden = true;
-      if (b.dataset.export === 'csv') exportCsv(); else exportXlsx();
+      if (b.dataset.export === 'csv') exportCsv(); else if (b.dataset.export === 'csv-money') exportMoneyCsv(); else exportXlsx();
     });
   }
   $$('#export-menu [data-export]').forEach(wireExportButton);
@@ -880,15 +934,37 @@
       return {
         date: p.date, time: p.time || '', channel: CHANNELS[p.channel], title: p.title, status: STATUS_LABEL[p.status],
         tags: p.tags.map(tagLabel).join(', '), reach: p.reach || '', engagements: p.engagements || '',
-        rate: p.reach ? p.engagements / p.reach : ''
+        rate: p.reach ? p.engagements / p.reach : '',
+        // Monetization: blank for channels without payouts or posts not yet published
+        monetized: p.revenue ? 'Yes' : (MONETIZATION[p.channel] && p.status === 'published' && p.reach ? 'No' : ''),
+        revenue: p.revenue ? revTotal(p) : '', rpm: p.revenue ? revTotal(p) / p.reach * 1000 : '',
+        src: p.revenue || null
       };
     });
   }
+  function csvCell(v) { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function exportMoneyCsv() {
+    if (!MONEY_CHANNELS.length) { toast('No monetized channels connected', 'Connect YouTube, Facebook, Instagram, TikTok or X to report revenue.'); return; }
+    var from = addDays(TODAY, -30), mon = monetization(from, TODAY);
+    var head = ['Channel', 'Programs', 'Published posts', 'Monetized posts', 'Monetized views', 'Est. revenue (USD)', 'RPM (USD)']
+      .concat(REV_SOURCES.map(function (src) { return src[1] + ' (USD)'; }));
+    var lines = ['# ' + ENV.company + ' monetization, ' + from + ' to ' + addDays(TODAY, -1) + '. Estimates in USD; platforms may revise figures.', head.join(',')]
+      .concat(mon.rows.map(function (r) {
+        return [CHANNELS[r.channel], MONETIZATION[r.channel].programs, r.posts, r.monetized, r.views, r.revenue.toFixed(2), r.views ? r.rpm.toFixed(2) : '']
+          .concat(REV_SOURCES.map(function (src) { return r.src[src[0]].toFixed(2); })).map(csvCell).join(',');
+      }))
+      .concat([['Total', '', mon.rows.reduce(function (t, r) { return t + r.posts; }, 0), mon.total.monetized, mon.total.views, mon.total.revenue.toFixed(2), mon.total.views ? mon.total.rpm.toFixed(2) : '']
+        .concat(REV_SOURCES.map(function (src) { return mon.rows.reduce(function (t, r) { return t + r.src[src[0]]; }, 0).toFixed(2); })).map(csvCell).join(',')]);
+    download(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'campaign-span-monetization-' + TODAY + '.csv');
+    toast('Monetization CSV exported', money(mon.total.revenue) + ' estimated across ' + mon.rows.length + ' channel' + (mon.rows.length === 1 ? '' : 's'));
+  }
   function exportCsv() {
-    var head = ['Date', 'Time', 'Channel', 'Title', 'Status', 'Tagged', 'Reach', 'Engagements', 'Engagement / open rate'];
-    var cell = function (v) { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var head = ['Date', 'Time', 'Channel', 'Title', 'Status', 'Tagged', 'Reach', 'Engagements', 'Engagement / open rate',
+      'Monetized', 'Est. revenue (USD)', 'RPM (USD)'].concat(REV_SOURCES.map(function (src) { return src[1] + ' (USD)'; }));
     var lines = [head.join(',')].concat(postRows().map(function (r) {
-      return [r.date, r.time, r.channel, r.title, r.status, r.tags, r.reach, r.engagements, r.rate === '' ? '' : (r.rate * 100).toFixed(2) + '%'].map(cell).join(',');
+      return [r.date, r.time, r.channel, r.title, r.status, r.tags, r.reach, r.engagements, r.rate === '' ? '' : (r.rate * 100).toFixed(2) + '%',
+        r.monetized, r.revenue === '' ? '' : r.revenue.toFixed(2), r.rpm === '' ? '' : r.rpm.toFixed(2)]
+        .concat(REV_SOURCES.map(function (src) { return r.src ? r.src[src[0]].toFixed(2) : ''; })).map(csvCell).join(',');
     }));
     download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'campaign-span-calendar-' + TODAY + '.csv');
     toast('CSV exported', posts.length + ' calendar entries');
@@ -902,7 +978,8 @@
   function exportXlsx() {
     toast('Building Excel report…');
     loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js').then(function () {
-      var from = addDays(TODAY, -30), cur = analyze(from, TODAY), recs = recommendations(cur);
+      var from = addDays(TODAY, -30), cur = analyze(from, TODAY), recs = recommendations(cur), mon = monetization(from, TODAY);
+      var USD = '"$"#,##0.00';
       var wb = new window.ExcelJS.Workbook();
       wb.creator = 'Campaign Span'; wb.created = new Date();
       var BRAND = 'FFD90368', ZEBRA = 'FFF4EEEC', BORDER = { bottom: { style: 'thin', color: { argb: 'FFE3E0D8' } } };
@@ -939,7 +1016,7 @@
       [['Posts published', cur.posts, '0'], ['Social reach', cur.reach, '#,##0'], ['Social engagements', cur.eng, '#,##0'],
        ['Engagement rate', cur.er, '0.0%'], ['Email open rate', cur.openRate, '0.0%'],
        ['Entries planned (next 30 days)', posts.filter(function (p) { return p.date >= TODAY && p.date <= addDays(TODAY, 30); }).length, '0']
-      ].forEach(function (r) { var row = s.addRow([r[0], r[1]]); row.getCell(2).numFmt = r[2]; row.getCell(2).alignment = { horizontal: 'right' }; });
+      ].concat(MONEY_CHANNELS.length ? [['Est. creator revenue (USD)', Math.round(mon.total.revenue * 100) / 100, USD], ['Monetized posts', mon.total.monetized, '0']] : []).forEach(function (r) { var row = s.addRow([r[0], r[1]]); row.getCell(2).numFmt = r[2]; row.getCell(2).alignment = { horizontal: 'right' }; });
       zebra(s, 5);
       s.addRow([]);
       var rh = s.addRow(['Recommendations & gaps']); rh.font = { bold: true, size: 13, color: { argb: 'FF820263' } };
@@ -966,23 +1043,75 @@
       zebra(c, 5);
       c.autoFilter = { from: 'A4', to: 'F4' };
 
+      // Monetization
+      var m = wb.addWorksheet('Monetization', { views: [{ state: 'frozen', ySplit: 4, showGridLines: false }] });
+      m.columns = [{ width: 14 }, { width: 44 }, { width: 11 }, { width: 12 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 13 }, { width: 16 }, { width: 13 }, { width: 16 }];
+      title(m, 'Monetization (estimated, USD)', 'K');
+      var note = m.getCell('A3');
+      note.value = 'Estimated creator earnings reported by connected platforms. Platforms report revenue 1\u20133 days late and may revise it. RPM = revenue per 1,000 monetized views.';
+      note.font = { italic: true, size: 9, color: { argb: 'FF5E5C70' } };
+      if (!MONEY_CHANNELS.length) {
+        m.addRow(['No monetized channels are connected. Connect YouTube, Facebook, Instagram, TikTok or X to report revenue.']);
+      } else {
+        header(m.addRow(['Channel', 'Programs', 'Published', 'Monetized', 'Mon. views', 'Est. revenue', 'RPM'].concat(REV_SOURCES.map(function (src) { return src[1]; }))));
+        var firstRow = m.rowCount + 1;
+        mon.rows.forEach(function (r) {
+          var row = m.addRow([CHANNELS[r.channel], MONETIZATION[r.channel].programs, r.posts, r.monetized, r.views,
+            Math.round(r.revenue * 100) / 100, r.views ? r.rpm : null].concat(REV_SOURCES.map(function (src) { return Math.round(r.src[src[0]] * 100) / 100; })));
+          row.getCell(5).numFmt = '#,##0';
+          [6, 7, 8, 9, 10, 11].forEach(function (i) { row.getCell(i).numFmt = USD; });
+        });
+        var lastRow = m.rowCount;
+        zebra(m, firstRow);
+        // Totals use live formulas so edits in Excel stay consistent
+        // Cached results let previewers that don't calculate (email, Quick Look) still show the totals
+        var colTotal = function (key) { return mon.rows.reduce(function (t, r) { return t + (key in r.src ? r.src[key] : r[key]); }, 0); };
+        var sum = function (col, key) { return { formula: 'SUM(' + col + firstRow + ':' + col + lastRow + ')', result: Math.round(colTotal(key) * 100) / 100 }; };
+        var tot = m.addRow(['Total', '', sum('C', 'posts'), sum('D', 'monetized'), sum('E', 'views'), sum('F', 'revenue'),
+          { formula: 'IF(E' + (lastRow + 1) + '=0,"",F' + (lastRow + 1) + '/E' + (lastRow + 1) + '*1000)', result: mon.total.views ? mon.total.rpm : '' },
+          sum('H', 'ads'), sum('I', 'subs'), sum('J', 'tips'), sum('K', 'bonus')]);
+        tot.font = { bold: true };
+        tot.eachCell(function (cell) { cell.border = { top: { style: 'thin', color: { argb: 'FF2E294E' } } }; });
+        tot.getCell(5).numFmt = '#,##0';
+        [6, 7, 8, 9, 10, 11].forEach(function (i) { tot.getCell(i).numFmt = USD; });
+        m.getColumn(2).alignment = { wrapText: true, vertical: 'top' };
+
+        var earners = posts.filter(function (x) { return x.revenue && x.date >= from && x.date < TODAY; })
+          .sort(function (a, b) { return revTotal(b) - revTotal(a); }).slice(0, 10);
+        if (earners.length) {
+          m.addRow([]);
+          var th = m.addRow(['Top earning posts']); th.font = { bold: true, size: 13, color: { argb: 'FF820263' } };
+          header(m.addRow(['Date', 'Title', 'Channel', 'Mon. views', 'Est. revenue', 'RPM', 'Top source']));
+          var topStart = m.rowCount + 1;
+          earners.forEach(function (x) {
+            var top = REV_SOURCES.slice().sort(function (a, b) { return x.revenue[b[0]] - x.revenue[a[0]]; })[0];
+            var row = m.addRow([parse(x.date), x.title, CHANNELS[x.channel], x.reach, Math.round(revTotal(x) * 100) / 100, revTotal(x) / x.reach * 1000, top[1]]);
+            row.getCell(1).numFmt = 'mmm d, yyyy'; row.getCell(4).numFmt = '#,##0'; row.getCell(5).numFmt = USD; row.getCell(6).numFmt = USD;
+            row.getCell(7).alignment = { wrapText: true, vertical: 'top' };
+          });
+          zebra(m, topStart);
+        }
+      }
+
       // Posts
       var p = wb.addWorksheet('Calendar', { views: [{ state: 'frozen', ySplit: 4, showGridLines: false }] });
-      p.columns = [{ width: 12 }, { width: 8 }, { width: 12 }, { width: 32 }, { width: 14 }, { width: 40 }, { width: 11 }, { width: 13 }, { width: 12 }];
-      title(p, 'Content calendar & results', 'I');
+      p.columns = [{ width: 12 }, { width: 8 }, { width: 12 }, { width: 32 }, { width: 14 }, { width: 40 }, { width: 11 }, { width: 13 }, { width: 12 }, { width: 11 }, { width: 14 }, { width: 10 }];
+      title(p, 'Content calendar & results', 'L');
       p.addRow([]);
-      header(p.addRow(['Date', 'Time', 'Channel', 'Title', 'Status', 'Tagged', 'Reach', 'Engagements', 'Rate']));
+      header(p.addRow(['Date', 'Time', 'Channel', 'Title', 'Status', 'Tagged', 'Reach', 'Engagements', 'Rate', 'Monetized', 'Est. revenue', 'RPM']));
       postRows().forEach(function (r) {
-        var row = p.addRow([parse(r.date), r.time, r.channel, r.title, r.status, r.tags, r.reach || null, r.engagements || null, r.rate === '' ? null : r.rate]);
+        var row = p.addRow([parse(r.date), r.time, r.channel, r.title, r.status, r.tags, r.reach || null, r.engagements || null, r.rate === '' ? null : r.rate,
+          r.monetized || null, r.revenue === '' ? null : Math.round(r.revenue * 100) / 100, r.rpm === '' ? null : r.rpm]);
         row.getCell(1).numFmt = 'mmm d, yyyy'; row.getCell(7).numFmt = '#,##0'; row.getCell(8).numFmt = '#,##0'; row.getCell(9).numFmt = '0.0%';
+        row.getCell(11).numFmt = USD; row.getCell(12).numFmt = USD;
       });
       zebra(p, 5);
-      p.autoFilter = { from: 'A4', to: 'I4' };
+      p.autoFilter = { from: 'A4', to: 'L4' };
 
       return wb.xlsx.writeBuffer();
     }).then(function (buf) {
       download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'campaign-span-report-' + TODAY + '.xlsx');
-      toast('Excel report exported', 'Summary, By channel and Calendar sheets');
+      toast('Excel report exported', 'Summary, By channel, Monetization and Calendar sheets');
     }).catch(function () {
       toast('Couldn’t load the Excel builder', 'Exporting CSV instead.');
       exportCsv();

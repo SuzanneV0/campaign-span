@@ -41,7 +41,14 @@ The header and footer for every page come from `assets/site.js`. The dark/light 
 - **Troubleshooting**: live health checks (pages, scripts, CDNs, browser support), a demo-link inspector, and browser details to collect from clients.
 - **Service settings**: defaults for new environments, links to hosting/code/DNS, and an activity log.
 
-Saved environments live in the admin's browser (`localStorage`); use Export/Import JSON to back up or share them. The page holds no secrets and isn't password-protected, so treat it as a tool, not a vault. Real customer accounts, billing and access control need the production backend.
+**Sign-in and storage** use Supabase (project `campaign-span`, region `ca-central-1`):
+
+- Admins sign in with email and password. Only emails in the `admin_users` table get in; everyone else sees "no admin access".
+- Environments, onboarding progress, settings and the activity log live in `admin_environments`, `admin_settings` and `admin_log`, shared by all admins.
+- Row-level security on every table calls `is_admin()`, which requires a signed-in user whose confirmed email is on the allowlist. The publishable key in `assets/admin.js` is public by design.
+
+To add an admin: in Supabase, add a user under Authentication → Users, then run
+`insert into public.admin_users (email) values ('person@example.com');`
 
 ## Run locally
 

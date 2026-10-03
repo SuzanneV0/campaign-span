@@ -70,3 +70,14 @@ pre.code { background: var(--surface-2); border: 1px solid var(--border); border
   .check-row { grid-template-columns: 1fr; gap: 6px; }
   .log div { flex-direction: column; gap: 2px; }
 }
+
+/* Sign-in */
+.admin-page .app[hidden], .auth-screen[hidden] { display: none; }
+.auth-screen { min-height: calc(100vh - 68px); display: grid; place-items: center; padding: 32px 16px; }
+.auth-card { width: min(420px, 100%); padding: 32px; }
+.auth-card h1 { font-size: 1.6rem; margin-bottom: 4px; }
+.link-btn { display: block; margin: 14px auto 0; background: none; border: 0; color: var(--link); font: inherit; font-weight: 600; font-size: .9rem; cursor: pointer; }
+.link-btn:hover { text-decoration: underline; }
+.admin-who { font-size: .85rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notice.ok, #forgot-msg.notice { color: var(--text); }
+@media (max-width: 640px) { .admin-who { display: none; } }

@@ -1,6 +1,7 @@
 /* Campaign Span — admin console.
    Builds custom demo and onboarding environments, tracks onboarding, runs health checks.
-   Everything is stored in this browser (localStorage); each environment also lives inside its own link. */
+   Sign-in and data are handled by Supabase (project "campaign-span", Canada region). Only accounts on the
+   admin_users allowlist can read or write anything; row-level security enforces this in the database. */
 (function () {
   'use strict';
 
@@ -25,28 +26,68 @@
   var PURPOSE = { sales: 'Sales demo', onboarding: 'Client onboarding' };
   var DATA_LABEL = { full: 'Full history', light: 'Light', empty: 'Empty' };
 
+  // ---------- Supabase ----------
+  // The URL and publishable (anon) key are public by design; the database's row-level security does the protecting.
+  var SUPABASE_URL = 'https://mrikvtrhvmhuxkcdljhr.supabase.co';
+  var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yaWt2dHJodm1odXhrY2RsamhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5OTkwOTAsImV4cCI6MjEwNjU3NTA5MH0.TTx6YcKp8mt7tB-ps3amsmlbwaMgoi3SanKxFpAMhCs';
+  // Read invite/reset tokens before the Supabase client consumes and clears them from the URL
+  var landingHash = location.hash;
+  var sb = window.supabase && window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
+  });
+  var me = null; // signed-in admin's email
+
   // ---------- storage ----------
-  var KEY = 'cs-admin-v1';
   var store = { envs: [], log: [], defaults: null };
   var storageOk = true;
+  try { localStorage.setItem('cs-check', '1'); localStorage.removeItem('cs-check'); } catch (e) { storageOk = false; }
+  var pendingDeletes = [], saveTimer = null, saving = Promise.resolve();
+
+  function toRow(e) {
+    return { id: e.id, name: e.name, cfg: e.cfg, follow_up: e.followUp || null, notes: e.notes || '', steps: e.steps || {}, opened: e.opened || 0,
+      created_at: new Date(e.created || Date.now()).toISOString(), updated_at: new Date(e.updated || Date.now()).toISOString() };
+  }
+  function fromRow(r) {
+    return { id: r.id, name: r.name, cfg: E.normalize(r.cfg), followUp: r.follow_up || '', notes: r.notes || '', steps: r.steps || {}, opened: r.opened || 0,
+      created: Date.parse(r.created_at), updated: Date.parse(r.updated_at) };
+  }
   function load() {
-    try {
-      var raw = localStorage.getItem(KEY);
-      if (raw) {
-        var d = JSON.parse(raw);
-        store.envs = Array.isArray(d.envs) ? d.envs : [];
-        store.log = Array.isArray(d.log) ? d.log : [];
-        store.defaults = d.defaults || null;
-      }
-    } catch (e) { storageOk = false; }
+    return Promise.all([
+      sb.from('admin_environments').select('*').order('updated_at', { ascending: false }),
+      sb.from('admin_log').select('at,msg,actor').order('at', { ascending: false }).limit(60),
+      sb.from('admin_settings').select('value').eq('key', 'defaults').maybeSingle()
+    ]).then(function (res) {
+      var err = res.find(function (r) { return r.error; });
+      if (err) throw err.error;
+      store.envs = res[0].data.map(fromRow);
+      store.log = res[1].data.map(function (l) { return { at: Date.parse(l.at), msg: l.msg, actor: l.actor }; });
+      store.defaults = res[2].data ? res[2].data.value : null;
+    });
   }
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(store)); }
-    catch (e) { storageOk = false; toast('Couldn’t save in this browser', 'Storage is blocked or full. Export your environments to keep them.'); }
+  // Writes are batched: every change calls save(), which upserts the environments shortly after.
+  function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 250); }
+  function flush() {
+    if (!me) return;
+    var jobs = [];
+    if (store.envs.length) jobs.push(sb.from('admin_environments').upsert(store.envs.map(toRow)));
+    if (pendingDeletes.length) jobs.push(sb.from('admin_environments').delete().in('id', pendingDeletes.splice(0)));
+    jobs.push(store.defaults
+      ? sb.from('admin_settings').upsert({ key: 'defaults', value: store.defaults, updated_at: new Date().toISOString() })
+      : sb.from('admin_settings').delete().eq('key', 'defaults'));
+    saving = Promise.all(jobs).then(function (res) {
+      var err = res.find(function (r) { return r.error; });
+      if (err) toast('Couldn\u2019t save changes', err.error.message + '. Check your connection and try again.');
+    });
+    return saving;
   }
-  function log(msg) { store.log.unshift({ at: Date.now(), msg: msg }); store.log = store.log.slice(0, 60); save(); }
+  function log(msg) {
+    store.log.unshift({ at: Date.now(), msg: msg, actor: me });
+    store.log = store.log.slice(0, 60);
+    if (me) sb.from('admin_log').insert({ msg: String(msg).slice(0, 500) }).then(function () {});
+    save();
+  }
   function defaults() { return E.normalize(store.defaults || E.DEFAULT); }
-  load();
+  function logLine(l) { return '<div><time>' + when(l.at) + '</time><span>' + esc(l.msg) + (l.actor ? ' <small class="muted">\u00b7 ' + esc(l.actor) + '</small>' : '') + '</span></div>'; }
 
   function envById(id) { return store.envs.find(function (e) { return e.id === id; }); }
   function linkFor(cfg) { return new URL('demo.html?env=' + E.encode(cfg), location.href).href; }
@@ -117,8 +158,8 @@
       (due.length ? '<div class="link-list">' + due.map(function (e) {
         return '<a href="#" data-edit="' + e.id + '">' + esc(e.name) + '<small>Follow up ' + day(e.followUp) + '</small></a>';
       }).join('') + '</div>' : '<p class="empty">Nothing due. Nice.</p>') + '</div>';
-    h += '<div class="panel" style="grid-column:1/-1"><h3>Recent activity</h3><p class="sub">Changes made in this browser.</p>' +
-      (store.log.length ? '<div class="log">' + store.log.slice(0, 10).map(function (l) { return '<div><time>' + when(l.at) + '</time><span>' + esc(l.msg) + '</span></div>'; }).join('') + '</div>' : '<p class="empty">No activity yet. Create your first environment to get started.</p>') +
+    h += '<div class="panel" style="grid-column:1/-1"><h3>Recent activity</h3><p class="sub">Changes by everyone with admin access.</p>' +
+      (store.log.length ? '<div class="log">' + store.log.slice(0, 10).map(logLine).join('') + '</div>' : '<p class="empty">No activity yet. Create your first environment to get started.</p>') +
       '</div></div>';
     view.innerHTML = h;
     $$('[data-quick]').forEach(function (a) {
@@ -219,8 +260,8 @@
       '<div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost btn-sm" type="button" id="inspect-go">Inspect</button></div><div id="inspect-out"></div></div>' +
       '<div class="panel"><h3>This browser</h3><p class="sub">Useful when a client reports a problem: ask them to open this page and send you these details.</p><pre class="code" id="env-info"></pre>' +
       '<div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost btn-sm" type="button" id="copy-info">Copy details</button></div></div>' +
-      '<div class="panel danger-zone" style="grid-column:1/-1"><h3>Reset</h3><p class="sub">Clears saved environments, onboarding progress and the activity log from this browser. Links you already sent keep working.</p>' +
-      '<button class="btn btn-ghost btn-sm danger-text" type="button" id="reset-all">Clear admin data in this browser</button></div></div>';
+      '<div class="panel" style="grid-column:1/-1"><h3>Your session</h3><p class="sub">Signed in as <strong>' + esc(me) + '</strong>. Sign out when you\u2019re done on a shared computer.</p>' +
+      '<button class="btn btn-ghost btn-sm" type="button" data-sign-out>Sign out</button></div></div>';
 
     var info = {
       'Browser': navigator.userAgent,
@@ -231,6 +272,7 @@
       'Cookies enabled': navigator.cookieEnabled ? 'yes' : 'no',
       'Local storage': storageOk ? 'available' : 'blocked',
       'Saved environments': store.envs.length,
+      'Signed in as': me,
       'Page': location.href.split('#')[0]
     };
     var text = Object.keys(info).map(function (k) { return k + ': ' + info[k]; }).join('\n');
@@ -238,12 +280,6 @@
     $('#copy-info').addEventListener('click', function () { copy(text, 'Details'); });
     $('#run-checks').addEventListener('click', runChecks);
     $('#inspect-go').addEventListener('click', inspect);
-    $('#reset-all').addEventListener('click', function () {
-      if (!confirm('Clear all environments, onboarding progress and activity from this browser? Export first if you want a backup.')) return;
-      store = { envs: [], log: [], defaults: null };
-      try { localStorage.removeItem(KEY); } catch (e) {}
-      toast('Admin data cleared'); render();
-    });
   }
 
   function inspect() {
@@ -298,6 +334,13 @@
           var bad = res.filter(function (r) { return r[1] !== 200; });
           return bad.length ? ['fail', 'Missing: ' + bad.map(function (b) { return b[0]; }).join(', ')] : ['pass', 'All ' + res.length + ' files load'];
         });
+    });
+    add('Admin database (Supabase)', function () {
+      var t0 = performance.now();
+      return sb.from('admin_environments').select('id', { count: 'exact', head: true }).then(function (r) {
+        if (r.error) return ['fail', 'Couldn\u2019t reach the admin database: ' + r.error.message];
+        return ['pass', 'Connected in ' + Math.round(performance.now() - t0) + ' ms. ' + r.count + ' environment(s) stored'];
+      });
     });
     add('Excel export library (cdnjs)', function () {
       return fetchStatus('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js', { method: 'HEAD' })
@@ -374,8 +417,8 @@
       '<a href="https://github.com/SuzanneV0/campaign-span" target="_blank" rel="noopener">Source code<small>GitHub</small></a>' +
       '<a href="https://hpanel.hostinger.com/domain/campaignspan.com/dns" target="_blank" rel="noopener">Domain and DNS<small>Hostinger</small></a>' +
       '<a href="mailto:hello@campaignspan.com">Support inbox<small>hello@campaignspan.com</small></a></div></div>' +
-      '<div class="panel" style="grid-column:1/-1"><h3>Activity log</h3><p class="sub">Everything changed from this browser, newest first.</p>' +
-      (store.log.length ? '<div class="log">' + store.log.map(function (l) { return '<div><time>' + when(l.at) + '</time><span>' + esc(l.msg) + '</span></div>'; }).join('') + '</div>' : '<p class="empty">No activity yet.</p>') +
+      '<div class="panel" style="grid-column:1/-1"><h3>Activity log</h3><p class="sub">Everything changed by admins, newest first.</p>' +
+      (store.log.length ? '<div class="log">' + store.log.map(logLine).join('') + '</div>' : '<p class="empty">No activity yet.</p>') +
       '<div class="btn-row" style="margin-top:12px"><button class="btn btn-ghost btn-sm" type="button" id="log-export"' + (store.log.length ? '' : ' disabled') + '>Download log (CSV)</button></div></div></div>';
     view.innerHTML = h;
     $('#defaults-form').addEventListener('submit', function (e) {
@@ -388,7 +431,7 @@
     });
     $('#d-reset').addEventListener('click', function () { store.defaults = null; log('Reset defaults to standard'); render(); toast('Defaults reset'); });
     $('#log-export').addEventListener('click', function () {
-      var csv = 'Time,Change\r\n' + store.log.map(function (l) { return new Date(l.at).toISOString() + ',"' + l.msg.replace(/"/g, '""') + '"'; }).join('\r\n');
+      var csv = 'Time,Admin,Change\r\n' + store.log.map(function (l) { return new Date(l.at).toISOString() + ',"' + String(l.actor || '').replace(/"/g, '""') + '","' + l.msg.replace(/"/g, '""') + '"'; }).join('\r\n');
       download('campaign-span-admin-log-' + today() + '.csv', '﻿' + csv, 'text/csv;charset=utf-8');
     });
   }
@@ -536,8 +579,9 @@
       var c = { id: uid(), name: env.name + ' (copy)', cfg: E.clone(env.cfg), created: Date.now(), updated: Date.now(), followUp: env.followUp, notes: env.notes, steps: {}, opened: 0 };
       store.envs.push(c); log('Duplicated "' + env.name + '"'); render();
     } else if (t.dataset.del) {
-      if (!confirm('Delete "' + env.name + '" from the admin console? Links you already sent will keep working.')) return;
+      if (!confirm('Delete "' + env.name + '" for all admins? Links you already sent will keep working.')) return;
       store.envs = store.envs.filter(function (x) { return x !== env; });
+      pendingDeletes.push(env.id);
       log('Deleted "' + env.name + '"'); toast('Deleted'); render();
     }
   });
@@ -549,7 +593,119 @@
     current = TITLES[v] ? v : 'overview';
     render();
   }
-  window.addEventListener('hashchange', route);
-  if (!storageOk) setTimeout(function () { toast('Browser storage is blocked', 'You can build and share links, but nothing will be saved here.'); }, 300);
-  route();
+  window.addEventListener('hashchange', function () { if (me) route(); });
+
+  // ---------- sign-in ----------
+  var screens = ['auth-loading', 'login-form', 'forgot-form', 'setpw-form', 'denied'];
+  function show(which) {
+    var signedIn = which === 'app';
+    $('#auth-screen').hidden = signedIn;
+    $('#main').hidden = !signedIn;
+    $('#who').hidden = $('#sign-out').hidden = !signedIn;
+    screens.forEach(function (id) { $('#' + id).hidden = id !== which; });
+    var first = !signedIn && $('#' + which + ' input');
+    if (first) first.focus();
+  }
+  function authError(el, msg) { el.textContent = msg; el.hidden = !msg; }
+  function friendly(err) {
+    var m = (err && err.message) || String(err);
+    if (/invalid login credentials/i.test(m)) return 'That email and password don\u2019t match an admin account.';
+    if (/email not confirmed/i.test(m)) return 'This email hasn\u2019t been confirmed yet. Use the link in your invitation email first.';
+    if (/rate limit|too many/i.test(m)) return 'Too many attempts. Wait a few minutes and try again.';
+    if (/failed to fetch|network/i.test(m)) return 'Can\u2019t reach the sign-in service. Check your connection.';
+    return m;
+  }
+
+  var recovering = false, handledUser = null;
+  function handleSession(session) {
+    if (recovering) return;
+    if (!session) { me = null; handledUser = null; show('login-form'); return; }
+    if (handledUser === session.user.id) return;
+    handledUser = session.user.id;
+    show('auth-loading');
+    sb.rpc('is_admin').then(function (r) {
+      if (r.error) throw r.error;
+      if (!r.data) { $('#denied-email').textContent = session.user.email; show('denied'); return; }
+      me = session.user.email;
+      $('#who').textContent = me;
+      return load().then(function () { show('app'); route(); });
+    }).catch(function (err) {
+      handledUser = null;
+      show('login-form');
+      authError($('#login-error'), friendly(err));
+    });
+  }
+
+  $('#login-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = e.target.querySelector('button[type=submit]'), err = $('#login-error');
+    authError(err, '');
+    var email = $('#login-email').value.trim(), pw = $('#login-password').value;
+    if (!email || !pw) { authError(err, 'Enter your email and password.'); return; }
+    btn.disabled = true; btn.textContent = 'Signing in\u2026';
+    sb.auth.signInWithPassword({ email: email, password: pw }).then(function (r) {
+      btn.disabled = false; btn.textContent = 'Sign in';
+      if (r.error) { authError(err, friendly(r.error)); $('#login-password').select(); return; }
+      $('#login-password').value = '';
+      handleSession(r.data.session);
+    });
+  });
+  $('#show-forgot').addEventListener('click', function () { $('#forgot-email').value = $('#login-email').value; authError($('#forgot-msg'), ''); show('forgot-form'); });
+  $('#back-to-login').addEventListener('click', function () { show('login-form'); });
+  $('#forgot-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var email = $('#forgot-email').value.trim(), msg = $('#forgot-msg');
+    if (!email) { authError(msg, 'Enter your email.'); return; }
+    sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }).then(function (r) {
+      if (r.error && !/rate limit/i.test(r.error.message)) { authError(msg, friendly(r.error)); return; }
+      msg.className = 'notice ok';
+      authError(msg, 'If that email has an admin account, a reset link is on its way. It expires in one hour.');
+    });
+  });
+  $('#setpw-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var a = $('#setpw-1').value, b = $('#setpw-2').value, err = $('#setpw-error');
+    if (a.length < 10) { authError(err, 'Use at least 10 characters.'); return; }
+    if (a !== b) { authError(err, 'The two passwords don\u2019t match.'); return; }
+    sb.auth.updateUser({ password: a }).then(function (r) {
+      if (r.error) { authError(err, friendly(r.error)); return; }
+      recovering = false; handledUser = null;
+      $('#setpw-1').value = $('#setpw-2').value = '';
+      history.replaceState(null, '', location.pathname);
+      toast('Password saved');
+      sb.auth.getSession().then(function (s2) { handleSession(s2.data.session); });
+    });
+  });
+  function signOut() {
+    sb.auth.signOut().then(function () {
+      me = null; handledUser = null; store = { envs: [], log: [], defaults: null };
+      view.innerHTML = '';
+      show('login-form');
+    });
+  }
+  document.addEventListener('click', function (e) { if (e.target.closest('[data-sign-out]')) signOut(); });
+
+  if (!sb) {
+    show('login-form');
+    authError($('#login-error'), 'The sign-in service didn\u2019t load. Check your connection or ad blocker, then reload.');
+    $('#login-form button[type=submit]').disabled = true;
+  } else {
+    show('auth-loading');
+    sb.auth.onAuthStateChange(function (event, session) {
+      if (event === 'PASSWORD_RECOVERY') { recovering = true; show('setpw-form'); return; }
+      if (event === 'SIGNED_OUT') { handleSession(null); return; }
+      // Defer: calling Supabase inside this callback can deadlock the auth client
+      setTimeout(function () { handleSession(session); }, 0);
+    });
+    // Invite and reset links land here with type=invite|recovery in the URL hash
+    if (/type=(invite|recovery)/.test(landingHash)) { recovering = true; show('setpw-form'); }
+    var linkErr = landingHash.match(/error_description=([^&]+)/);
+    if (linkErr) {
+      history.replaceState(null, '', location.pathname);
+      setTimeout(function () {
+        show('login-form');
+        authError($('#login-error'), /expired|invalid/i.test(decodeURIComponent(linkErr[1])) ? 'That link has expired or was already used. Use “Forgot your password?” to get a new one.' : decodeURIComponent(linkErr[1].replace(/\+/g, ' ')));
+      }, 50);
+    }
+  }
 })();

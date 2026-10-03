@@ -81,3 +81,6 @@ pre.code { background: var(--surface-2); border: 1px solid var(--border); border
 .admin-who { font-size: .85rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notice.ok, #forgot-msg.notice { color: var(--text); }
 @media (max-width: 640px) { .admin-who { display: none; } }
+
+/* Buttons and grids set their own display, which would otherwise override the hidden attribute */
+.admin-page [hidden] { display: none !important; }

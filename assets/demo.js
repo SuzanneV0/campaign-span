@@ -1,4 +1,4 @@
-/* Campaign Span — interactive demo (all data is in memory and resets on reload) */
+/* Content Span — interactive demo (all data is in memory and resets on reload) */
 (function () {
   'use strict';
 
@@ -841,7 +841,7 @@
     var lines = [head.join(',')].concat(postRows().map(function (r) {
       return [r.date, r.time, r.channel, r.title, r.status, r.tags, r.reach, r.engagements, r.rate === '' ? '' : (r.rate * 100).toFixed(2) + '%'].map(cell).join(',');
     }));
-    download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'campaign-span-calendar-' + TODAY + '.csv');
+    download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'content-span-calendar-' + TODAY + '.csv');
     toast('CSV exported', posts.length + ' calendar entries');
   }
   function loadScript(src) {
@@ -855,7 +855,7 @@
     loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js').then(function () {
       var from = addDays(TODAY, -30), cur = analyze(from, TODAY), recs = recommendations(cur);
       var wb = new window.ExcelJS.Workbook();
-      wb.creator = 'Campaign Span'; wb.created = new Date();
+      wb.creator = 'Content Span'; wb.created = new Date();
       var BRAND = 'FF4F46E5', ZEBRA = 'FFF4F3FF', BORDER = { bottom: { style: 'thin', color: { argb: 'FFE3E0D8' } } };
       function header(row) {
         row.height = 22;
@@ -932,7 +932,7 @@
 
       return wb.xlsx.writeBuffer();
     }).then(function (buf) {
-      download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'campaign-span-report-' + TODAY + '.xlsx');
+      download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'content-span-report-' + TODAY + '.xlsx');
       toast('Excel report exported', 'Summary, By channel and Calendar sheets');
     }).catch(function () {
       toast('Couldn’t load the Excel builder', 'Exporting CSV instead.');

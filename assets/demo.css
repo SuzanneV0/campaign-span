@@ -1,4 +1,4 @@
-/* Campaign Span — demo app styles */
+/* Content Span — demo app styles */
 .demo-page .site-footer { display: none; }
 .demo-banner {
   display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; align-items: center;

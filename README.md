@@ -1,6 +1,6 @@
-# Campaign Span — marketing site
+# Content Span — marketing site
 
-Static marketing website and interactive demo for **Campaign Span**, a content marketing app with a team content calendar, kanban boards, connected analytics and recommendations, production planning, and Excel/CSV reporting.
+Static marketing website and interactive demo for **Content Span**, a content marketing app with a team content calendar, kanban boards, connected analytics and recommendations, production planning, and Excel/CSV reporting.
 
 ## Pages
 

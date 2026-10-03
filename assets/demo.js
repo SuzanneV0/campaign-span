@@ -16,6 +16,7 @@
   function addDays(s, n) { var d = parse(s); d.setDate(d.getDate() + n); return iso(d); }
   function nice(s, long) { return parse(s).toLocaleDateString('en-US', long ? { weekday: 'short', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric' }); }
   function niceTime(t) { if (!t) return ''; var h = +t.slice(0, 2), m = t.slice(3); return ((h % 12) || 12) + (m === '00' ? '' : ':' + m) + (h < 12 ? 'a' : 'p'); }
+  function niceTimeLong(t) { var hh = +t.slice(0, 2); return ((hh % 12) || 12) + ':' + t.slice(3, 5) + (hh < 12 ? ' AM' : ' PM'); }
   function fmtNum(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'K' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(Math.round(n)); }
   function pct(x, dp) { return (x * 100).toFixed(dp == null ? 1 : dp) + '%'; }
   var TODAY = iso(new Date());
@@ -209,6 +210,34 @@
     schedule: seeded ? P.schedule.map(function (r) { return { time: r[0], item: r[1], owner: r[2] ? role(r[2]) : '' }; }) : [],
     equipment: seeded ? CSEnv.clone(CSEnv.KIT) : []
   };
+
+  // ---------- call sheet ----------
+  function toMin(t) { return (+t.slice(0, 2)) * 60 + (+t.slice(3, 5)); }
+  function fromMin(n) { n = Math.max(0, Math.min(23 * 60 + 59, n)); return pad(Math.floor(n / 60)) + ':' + pad(n % 60); }
+  var CREW_TITLE = { P: 'Director of photography', P2: 'Camera operator', B: 'Wardrobe and brand lead', S: 'Social and BTS', M: 'Producer', X: 'Client liaison' };
+  var csId = 1;
+  // Everyone working the shoot day: in-house team (from the schedule) plus outside crew and talent
+  project.callSheet = !seeded ? [] : (function () {
+    var start = toMin(P.schedule[0][0]), end = toMin(P.schedule[P.schedule.length - 1][0]);
+    var out = [], seen = {};
+    function addInternal(r, call, wrap) {
+      var id = role(r); if (seen[id]) return; seen[id] = 1;
+      out.push({ id: csId++, personId: id, name: person(id).name, role: CREW_TITLE[r], type: 'Crew', call: fromMin(call), wrap: fromMin(wrap), status: 'Confirmed' });
+    }
+    addInternal('M', start - 30, end + 30); // producer opens and closes the day
+    P.schedule.forEach(function (r) {
+      if (!r[2]) return;
+      addInternal(r[2], r[2] === 'P' ? start : toMin(r[0]) - 30, r[2] === 'P' ? end + 30 : end);
+    });
+    (P.callSheet || []).forEach(function (c) {
+      out.push({ id: csId++, personId: '', name: c[0], role: c[1], type: c[2], call: c[3], wrap: c[4], status: c[5] || 'Confirmed' });
+    });
+    return out;
+  })();
+  function hoursBetween(call, wrap) { return Math.round((toMin(wrap) - toMin(call)) / 60 * 100) / 100; } // 10.25, 7.5, 9
+  function personActivities(id) {
+    return project.schedule.filter(function (r) { return id && r.owner === id; }).sort(function (a, b) { return a.time.localeCompare(b.time); });
+  }
 
   var firstWord = ENV.company.split(/\s+/)[0];
   var files = !seeded ? [] : [
@@ -619,7 +648,7 @@
       '<span class="tag">Shoot ' + nice(project.shootDate, true) + (days >= 0 ? ' · in ' + days + ' days' : '') + '</span>' +
       '<span class="tag ' + (packed === project.equipment.length ? 'ok' : 'warn') + '">Gear ' + packed + '/' + project.equipment.length + ' packed</span>' +
       '<span class="avatars">' + [role('P'), role('P2'), role('B'), role('S')].filter(function (id, i, a) { return a.indexOf(id) === i; }).map(function (id) { return avatar(person(id)); }).join('') + '</span></div>';
-    var tabs = [['brief', 'Brief & goals'], ['logistics', 'Logistics'], ['schedule', 'Production schedule'], ['equipment', 'Equipment']];
+    var tabs = [['brief', 'Brief & goals'], ['logistics', 'Logistics'], ['schedule', 'Production schedule'], ['callsheet', 'Call sheet'], ['equipment', 'Equipment']];
     h += '<div class="tabs" role="tablist">' + tabs.map(function (t) {
       return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' + (state.prodTab === t[0]) + '">' + t[1] + '</button>';
     }).join('') + '</div><div class="panel">';
@@ -650,6 +679,45 @@
         '<form class="inline-form" id="sched-form"><input type="time" id="s-time" required aria-label="Time" value="16:30"><input type="text" id="s-item" placeholder="Add an activity…" required aria-label="Activity">' +
         '<select id="s-owner" aria-label="Owner"><option value="">No owner</option>' + people.map(function (p) { return '<option value="' + p.id + '">' + esc(p.name) + '</option>'; }).join('') + '</select>' +
         '<button class="btn btn-primary btn-sm" type="submit">Add</button></form>';
+    } else if (state.prodTab === 'callsheet') {
+      var cs = project.callSheet.slice().sort(function (a, b) { return a.call.localeCompare(b.call) || a.name.localeCompare(b.name); });
+      var active = cs.filter(function (c) { return c.status !== 'Cancelled'; });
+      var crewCalls = active.filter(function (c) { return c.type === 'Crew'; }).map(function (c) { return c.call; }).sort();
+      var lastWrap = active.map(function (c) { return c.wrap; }).sort().pop();
+      var loc = (project.logistics.find(function (r) { return r[0] === 'Location'; }) || [])[1];
+      var missing = people.filter(function (pp) {
+        return personActivities(pp.id).length && !project.callSheet.some(function (c) { return c.personId === pp.id; });
+      });
+      h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap"><div><h3>Call sheet \u00b7 ' + nice(project.shootDate, true) + '</h3>' +
+        '<p class="sub" style="margin-bottom:0">Everyone working the shoot day, when they\u2019re expected and what they\u2019re doing. Scheduled activities come from the production schedule.</p></div>' +
+        '<button class="btn btn-ghost btn-sm" type="button" id="cs-export"' + (cs.length ? '' : ' disabled') + '>Download call sheet (.csv)</button></div>' +
+        '<div class="kpi-row" style="margin:14px 0">' +
+        '<div class="kpi-tile"><small>Location</small><strong style="font-size:1rem;line-height:1.35">' + esc(loc || 'TBD') + '</strong></div>' +
+        '<div class="kpi-tile"><small>General crew call</small><strong>' + (crewCalls.length ? niceTime(crewCalls[0]) : '\u2014') + '</strong></div>' +
+        '<div class="kpi-tile"><small>Estimated wrap</small><strong>' + (lastWrap ? niceTime(lastWrap) : '\u2014') + '</strong></div>' +
+        '<div class="kpi-tile"><small>On set</small><strong>' + active.length + '</strong><span class="d">' + active.filter(function (c) { return c.type === 'Crew'; }).length + ' crew \u00b7 ' + active.filter(function (c) { return c.type === 'Talent'; }).length + ' talent</span></div></div>' +
+        (missing.length ? '<div class="notice" style="margin-bottom:12px">' + missing.map(function (pp) { return '<strong>' + esc(pp.name) + '</strong>'; }).join(', ') +
+          (missing.length === 1 ? ' has' : ' have') + ' activities on the schedule but ' + (missing.length === 1 ? 'isn\u2019t' : 'aren\u2019t') + ' on the call sheet. ' +
+          missing.map(function (pp) { return '<button class="btn btn-ghost btn-sm" type="button" data-cs-addperson="' + pp.id + '">Add ' + esc(pp.name.split(' ')[0]) + '</button>'; }).join(' ') + '</div>' : '') +
+        '<div class="table-wrap"><table class="data-table call-sheet"><thead><tr><th>Name and role</th><th>Type</th><th>Call</th><th>Scheduled</th><th>Wrap</th><th class="num">Hours</th><th>Status</th><th><span class="sr-only">Remove</span></th></tr></thead><tbody>' +
+        (cs.length ? '' : '<tr><td colspan="8" class="empty">Nobody on the call sheet yet. Add your crew and talent below.</td></tr>') +
+        cs.map(function (c) {
+          var pp = person(c.personId), acts = personActivities(c.personId);
+          var hrs = hoursBetween(c.call, c.wrap);
+          return '<tr class="' + (c.status === 'Cancelled' ? 'cs-cancelled' : '') + '"><td>' + (pp ? avatar(pp) + ' ' : '') + '<strong>' + esc(c.name) + '</strong><small class="cs-role">' + esc(c.role) + '</small></td>' +
+            '<td><span class="tag ' + (c.type === 'Talent' ? '' : 'neutral') + '">' + esc(c.type) + '</span></td>' +
+            '<td><input type="time" data-cs-time="' + c.id + ':call" value="' + c.call + '" aria-label="Call time for ' + esc(c.name) + '"></td>' +
+            '<td class="cs-acts">' + (acts.length ? acts.map(function (a) { return '<span><b>' + niceTime(a.time) + '</b> ' + esc(a.item) + '</span>'; }).join('') : '<span class="muted">On set from call to wrap</span>') + '</td>' +
+            '<td><input type="time" data-cs-time="' + c.id + ':wrap" value="' + c.wrap + '" aria-label="Wrap time for ' + esc(c.name) + '"></td>' +
+            '<td class="num">' + (hrs > 0 ? hrs + ' h' : '\u2014') + '</td>' +
+            '<td><select data-cs-status="' + c.id + '" aria-label="Status for ' + esc(c.name) + '">' + ['Confirmed', 'Pending', 'Cancelled'].map(function (st) { return '<option' + (st === c.status ? ' selected' : '') + '>' + st + '</option>'; }).join('') + '</select></td>' +
+            '<td><button class="icon-btn" type="button" data-cs-remove="' + c.id + '" aria-label="Remove ' + esc(c.name) + ' from the call sheet">\u2715</button></td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<form class="inline-form" id="cs-form"><input type="text" id="cs-name" placeholder="Name" required aria-label="Name" list="cs-people"><datalist id="cs-people">' + people.map(function (pp) { return '<option value="' + esc(pp.name) + '">'; }).join('') + '</datalist>' +
+        '<input type="text" id="cs-role" placeholder="Role (e.g. Gaffer)" aria-label="Role">' +
+        '<select id="cs-type" aria-label="Type"><option>Crew</option><option>Talent</option><option>Client</option></select>' +
+        '<input type="time" id="cs-call" value="' + (crewCalls[0] || '09:00') + '" aria-label="Call time"><input type="time" id="cs-wrap" value="' + (lastWrap || '17:00') + '" aria-label="Wrap time">' +
+        '<button class="btn btn-primary btn-sm" type="submit">Add to call sheet</button></form>';
     } else {
       h += '<h3>Equipment list</h3><p class="sub">Update status as gear is pulled, packed and checked out.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Item</th><th class="num">Qty</th><th>Status</th></tr></thead><tbody>' +
         (project.equipment.length ? '' : '<tr><td colspan="3" class="empty">No equipment yet. Add items below.</td></tr>') +
@@ -670,6 +738,68 @@
       notify('Production schedule updated', item + ' at ' + niceTime($('#s-time').value || '12:00'), ['d:Production']);
       render();
     });
+    // Call sheet editing
+    function csById(id) { return project.callSheet.find(function (c) { return c.id === +id; }); }
+    function csTags(c) { return c.personId ? [c.personId, 'd:Production'] : ['d:Production']; }
+    $$('[data-cs-time]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var parts = inp.dataset.csTime.split(':'), c = csById(parts[0]), field = parts[1];
+        if (!inp.value) { inp.value = c[field]; return; }
+        var call = field === 'call' ? inp.value : c.call, wrap = field === 'wrap' ? inp.value : c.wrap;
+        if (toMin(wrap) <= toMin(call)) { toast('Wrap must be after call time', c.name + ' was not changed.'); inp.value = c[field]; return; }
+        var old = c[field]; c[field] = inp.value;
+        notify((field === 'call' ? 'Call time' : 'Wrap time') + ' changed: ' + c.name, niceTime(old) + ' \u2192 ' + niceTime(inp.value) + ' on ' + nice(project.shootDate), csTags(c));
+        render();
+      });
+    });
+    $$('[data-cs-status]').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        var c = csById(sel.dataset.csStatus); c.status = sel.value;
+        if (sel.value === 'Cancelled') notify(c.name + ' cancelled for ' + nice(project.shootDate), c.role, csTags(c));
+        render();
+      });
+    });
+    $$('[data-cs-remove]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var c = csById(b.dataset.csRemove);
+        project.callSheet = project.callSheet.filter(function (x) { return x !== c; });
+        toast('Removed ' + c.name + ' from the call sheet'); render();
+      });
+    });
+    $$('[data-cs-addperson]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var pp = person(b.dataset.csAddperson), acts = personActivities(pp.id);
+        project.callSheet.push({ id: csId++, personId: pp.id, name: pp.name, role: pp.dept, type: 'Crew', status: 'Confirmed',
+          call: fromMin(toMin(acts[0].time) - 30), wrap: fromMin(toMin(acts[acts.length - 1].time) + 60) });
+        notify('Added to call sheet: ' + pp.name, 'Call ' + niceTime(fromMin(toMin(acts[0].time) - 30)) + ' on ' + nice(project.shootDate), [pp.id, 'd:Production']);
+        render();
+      });
+    });
+    var csf = $('#cs-form');
+    if (csf) csf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var name = $('#cs-name').value.trim(), call = $('#cs-call').value, wrap = $('#cs-wrap').value;
+      if (!name) { $('#cs-name').focus(); return; }
+      if (!call || !wrap || toMin(wrap) <= toMin(call)) { toast('Wrap must be after call time'); return; }
+      var match = people.find(function (pp) { return pp.name.toLowerCase() === name.toLowerCase(); });
+      project.callSheet.push({ id: csId++, personId: match ? match.id : '', name: match ? match.name : name, role: $('#cs-role').value.trim() || (match ? match.dept : 'Crew'),
+        type: $('#cs-type').value, call: call, wrap: wrap, status: 'Confirmed' });
+      notify('Added to call sheet: ' + name, 'Call ' + niceTime(call) + ', wrap ' + niceTime(wrap) + ' on ' + nice(project.shootDate), match ? [match.id, 'd:Production'] : ['d:Production']);
+      render();
+    });
+    var cse = $('#cs-export');
+    if (cse) cse.addEventListener('click', function () {
+      var rows = project.callSheet.slice().sort(function (a, b) { return a.call.localeCompare(b.call); });
+      var lines = ['# ' + project.name + ' call sheet, ' + project.shootDate,
+        ['Name', 'Role', 'Type', 'Status', 'Call', 'Wrap', 'Hours', 'Scheduled activities'].join(',')]
+        .concat(rows.map(function (c) {
+          return [c.name, c.role, c.type, c.status, niceTimeLong(c.call), niceTimeLong(c.wrap), hoursBetween(c.call, c.wrap),
+            personActivities(c.personId).map(function (a) { return niceTimeLong(a.time) + ' ' + a.item; }).join('; ')].map(csvCell).join(',');
+        }));
+      download(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'call-sheet-' + project.shootDate + '.csv');
+      toast('Call sheet downloaded', rows.length + ' people');
+    });
+
     $$('[data-eq]').forEach(function (s) {
       s.addEventListener('change', function () { project.equipment[+s.dataset.eq].status = s.value; render(); });
     });

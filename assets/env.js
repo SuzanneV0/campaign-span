@@ -48,7 +48,10 @@
         talent: '3 models, booked and contracts signed',
         budget: '$8,500 (studio $2,200 · talent $3,600 · crew $2,100 · misc $600)',
         schedule: [['08:00', 'Crew call and load-in', 'P'], ['09:00', 'Hair, makeup and wardrobe', 'B'], ['09:30', 'Looks 1–4: hero stills', 'P2'], ['12:30', 'Lunch', ''],
-          ['13:30', 'Lookbook film: gimbal walk-throughs', 'P'], ['15:30', 'BTS for TikTok and Stories', 'S'], ['17:30', 'Wrap and strike', 'P']]
+          ['13:30', 'Lookbook film: gimbal walk-throughs', 'P'], ['15:30', 'BTS for TikTok and Stories', 'S'], ['17:30', 'Wrap and strike', 'P']],
+        // Call sheet: outside crew and talent [name, role, Crew|Talent, call, wrap, status]
+        callSheet: [['Jamie Ortiz', 'Gaffer', 'Crew', '08:00', '18:00'], ['Priya Nair', 'Stylist', 'Crew', '08:30', '17:30'], ['Chloe Martin', 'Hair and makeup', 'Crew', '08:30', '15:30'],
+          ['Ava Laurent', 'Model, looks 1–2', 'Talent', '09:00', '14:00'], ['Noah Kim', 'Model, looks 3–4', 'Talent', '09:00', '16:00', 'Pending'], ['Zara Ellis', 'Model, lookbook film', 'Talent', '12:30', '16:00']]
       }
     },
     saas: {
@@ -76,7 +79,9 @@
         talent: '2 customers on site, 1 on-camera product lead',
         budget: '$6,200 (crew $3,400 · equipment $1,300 · travel $900 · misc $600)',
         schedule: [['08:30', 'Crew call and set build', 'P'], ['09:30', 'Product lead interview', 'P2'], ['11:00', 'Screen-capture B-roll', 'P'], ['12:30', 'Lunch', ''],
-          ['13:30', 'Customer testimonials', 'P'], ['15:30', 'Social cut-down clips', 'S'], ['17:00', 'Wrap and strike', 'P']]
+          ['13:30', 'Customer testimonials', 'P'], ['15:30', 'Social cut-down clips', 'S'], ['17:00', 'Wrap and strike', 'P']],
+        callSheet: [['Jamie Ortiz', 'Gaffer', 'Crew', '08:30', '17:30'], ['Lee Chang', 'Sound recordist', 'Crew', '08:30', '17:00'],
+          ['Morgan Hale', 'Product lead, on camera', 'Talent', '09:00', '11:00'], ['Dana Whitfield', 'Customer testimonial', 'Talent', '13:00', '14:30'], ['Sam Okafor', 'Customer testimonial', 'Talent', '13:45', '15:30', 'Pending']]
       }
     },
     food: {
@@ -104,7 +109,9 @@
         talent: 'Head chef and 2 servers',
         budget: '$4,800 (crew $2,600 · food $900 · props $700 · misc $600)',
         schedule: [['07:30', 'Crew call and load-in', 'P'], ['08:30', 'Kitchen prep for dishes 1–6', 'B'], ['09:00', 'Dishes 1–6: hero stills', 'P2'], ['12:00', 'Staff lunch', ''],
-          ['13:00', 'Chef film: plating sequences', 'P'], ['14:30', 'BTS for TikTok and Stories', 'S'], ['15:45', 'Wrap and reset dining room', 'P']]
+          ['13:00', 'Chef film: plating sequences', 'P'], ['14:30', 'BTS for TikTok and Stories', 'S'], ['15:45', 'Wrap and reset dining room', 'P']],
+        callSheet: [['Jamie Ortiz', 'Gaffer', 'Crew', '07:30', '16:15'], ['Ellie Park', 'Food stylist', 'Crew', '07:30', '14:30'],
+          ['Marco Bellini', 'Head chef', 'Talent', '07:30', '15:00'], ['Rosa Diaz', 'Server', 'Talent', '12:30', '15:00'], ['Ben Carter', 'Server', 'Talent', '12:30', '15:00', 'Pending']]
       }
     },
     nonprofit: {
@@ -132,7 +139,9 @@
         talent: '4 volunteers and 2 families (consent forms signed)',
         budget: '$3,500 (crew $2,200 · equipment $700 · catering $300 · misc $300)',
         schedule: [['09:00', 'Crew call and load-in', 'P'], ['10:00', 'Volunteer interviews', 'P2'], ['11:30', 'Program B-roll', 'P'], ['12:30', 'Lunch', ''],
-          ['13:30', 'Family stories', 'P'], ['15:00', 'BTS for TikTok and Stories', 'S'], ['16:30', 'Wrap and strike', 'P']]
+          ['13:30', 'Family stories', 'P'], ['15:00', 'BTS for TikTok and Stories', 'S'], ['16:30', 'Wrap and strike', 'P']],
+        callSheet: [['Lee Chang', 'Sound recordist', 'Crew', '09:00', '17:00'], ['Grace Thompson', 'Volunteer interview', 'Talent', '09:45', '11:30'],
+          ['Omar Haddad', 'Volunteer interview', 'Talent', '10:30', '12:00'], ['The Martin family', 'Family story', 'Talent', '13:15', '14:30'], ['The Singh family', 'Family story', 'Talent', '14:00', '15:00', 'Pending']]
       }
     }
   };

@@ -214,3 +214,14 @@ dialog::backdrop { background: rgba(10, 9, 20, .5); }
   .app-actions #new-entry { flex: 1; }
   .reco-list .reco { flex-wrap: wrap; }
 }
+
+/* Call sheet */
+.call-sheet td { vertical-align: middle; }
+.call-sheet .cs-role { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+.call-sheet input[type=time] { width: auto; padding: 5px 6px; font-size: .84rem; }
+.call-sheet .cs-acts { font-size: .82rem; min-width: 200px; }
+.call-sheet .cs-acts span { display: block; line-height: 1.5; }
+.call-sheet .cs-acts b { font-variant-numeric: tabular-nums; margin-right: 4px; }
+.call-sheet .icon-btn { width: 30px; height: 30px; font-size: .8rem; }
+.call-sheet tr.cs-cancelled td { opacity: .55; }
+.call-sheet tr.cs-cancelled td strong { text-decoration: line-through; }

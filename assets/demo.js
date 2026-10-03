@@ -45,7 +45,7 @@
     { id: 'mc', name: 'Maya Chen', dept: 'Social', color: '#B02E78' },
     { id: 'jr', name: 'Jordan Reyes', dept: 'Marketing', color: '#B8561A' },
     { id: 'dp', name: 'Dev Patel', dept: 'Production', color: '#0B7C77' },
-    { id: 'ak', name: 'Avery Kim', dept: 'Production', color: '#4F46E5' },
+    { id: 'ak', name: 'Avery Kim', dept: 'Production', color: '#006E80' },
     { id: 'sl', name: 'Sam Lee', dept: 'Brand services', color: '#6B4FA0' },
     { id: 'tw', name: 'Taylor Wright', dept: 'Sales', color: '#0A66A8' }
   ];
@@ -856,11 +856,11 @@
       var from = addDays(TODAY, -30), cur = analyze(from, TODAY), recs = recommendations(cur);
       var wb = new window.ExcelJS.Workbook();
       wb.creator = 'Campaign Span'; wb.created = new Date();
-      var BRAND = 'FF4F46E5', ZEBRA = 'FFF4F3FF', BORDER = { bottom: { style: 'thin', color: { argb: 'FFE3E0D8' } } };
+      var BRAND = 'FF009FB7', ZEBRA = 'FFEFF1F3', BORDER = { bottom: { style: 'thin', color: { argb: 'FFE3E0D8' } } };
       function header(row) {
         row.height = 22;
         row.eachCell(function (c) {
-          c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          c.font = { bold: true, color: { argb: 'FF272727' } };
           c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND } };
           c.alignment = { vertical: 'middle' };
         });
@@ -875,7 +875,7 @@
       }
       function title(ws, text, span) {
         ws.mergeCells('A1:' + span + '1');
-        var t = ws.getCell('A1'); t.value = text; t.font = { bold: true, size: 16, color: { argb: BRAND } };
+        var t = ws.getCell('A1'); t.value = text; t.font = { bold: true, size: 16, color: { argb: 'FF006E80' } };
         ws.getRow(1).height = 28;
         var s = ws.getCell('A2'); s.value = 'Northwind Apparel · ' + nice(from) + ' – ' + nice(addDays(TODAY, -1)) + ' · Generated ' + new Date().toLocaleString('en-US');
         s.font = { italic: true, color: { argb: 'FF5E5C70' } };
@@ -893,7 +893,7 @@
       ].forEach(function (r) { var row = s.addRow([r[0], r[1]]); row.getCell(2).numFmt = r[2]; row.getCell(2).alignment = { horizontal: 'right' }; });
       zebra(s, 5);
       s.addRow([]);
-      var rh = s.addRow(['Recommendations & gaps']); rh.font = { bold: true, size: 13, color: { argb: BRAND } };
+      var rh = s.addRow(['Recommendations & gaps']); rh.font = { bold: true, size: 13, color: { argb: 'FF006E80' } };
       recs.forEach(function (r) {
         var row = s.addRow([r.title, r.text]);
         row.getCell(1).font = { bold: true };

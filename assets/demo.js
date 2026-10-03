@@ -28,97 +28,106 @@
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   }
-  var rand = rng(20261002);
+  // ---------- environment ----------
+  // A custom environment (built in admin.html) arrives as ?env=...; otherwise the standard demo loads.
+  var ENV_ERROR = null;
+  var ENV = (function () {
+    var raw = CSEnv.fromUrl();
+    if (!raw) return CSEnv.normalize(null);
+    try { return CSEnv.normalize(CSEnv.decode(raw)); }
+    catch (e) { ENV_ERROR = 'This demo link is damaged, so the standard demo loaded instead.'; return CSEnv.normalize(null); }
+  })();
+  var IND = CSEnv.INDUSTRIES[ENV.industry];
+
+  function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h; }
+  var rand = rng(hash(ENV.company + ENV.industry) || 20261002);
   function pick(arr) { return arr[Math.floor(rand() * arr.length)]; }
 
   // ---------- reference data ----------
-  var CHANNELS = {
-    instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', x: 'X', facebook: 'Facebook',
-    threads: 'Threads', bluesky: 'Bluesky', linkedin: 'LinkedIn', pinterest: 'Pinterest', email: 'Email'
-  };
-  var SOCIAL = Object.keys(CHANNELS).filter(function (c) { return c !== 'email'; });
-  var DEPTS = ['Production', 'Social', 'Brand services', 'Sales', 'Marketing'];
+  var CHANNELS = CSEnv.CHANNELS;
+  var ENABLED = ENV.channels;
+  var SOCIAL = ENABLED.filter(function (c) { return c !== 'email'; });
+  var DEPTS = CSEnv.DEPTS;
   var STATUSES = [['idea', 'Ideas'], ['brief', 'Briefing'], ['production', 'In production'], ['review', 'Review'], ['scheduled', 'Scheduled'], ['published', 'Published']];
   var STATUS_LABEL = {}; STATUSES.forEach(function (s) { STATUS_LABEL[s[0]] = s[1]; });
 
-  var people = [
-    { id: 'mc', name: 'Maya Chen', dept: 'Social', color: '#B02E78' },
-    { id: 'jr', name: 'Jordan Reyes', dept: 'Marketing', color: '#B8561A' },
-    { id: 'dp', name: 'Dev Patel', dept: 'Production', color: '#0B7C77' },
-    { id: 'ak', name: 'Avery Kim', dept: 'Production', color: '#820263' },
-    { id: 'sl', name: 'Sam Lee', dept: 'Brand services', color: '#6B4FA0' },
-    { id: 'tw', name: 'Taylor Wright', dept: 'Sales', color: '#0A66A8' }
-  ];
+  var AV_COLORS = ['#B02E78', '#B8561A', '#0B7C77', '#820263', '#6B4FA0', '#0A66A8', '#2E294E', '#1E7A4C'];
+  var people = ENV.people.map(function (p, i) { return { id: 'p' + i, name: p.name, dept: p.dept, color: AV_COLORS[i % AV_COLORS.length] }; });
   function person(id) { return people.find(function (p) { return p.id === id; }); }
-  function initials(p) { return p.name.split(' ').map(function (w) { return w[0]; }).join(''); }
-  function avatar(p) { return '<span class="avatar" style="--av:' + p.color + '" title="' + esc(p.name) + '">' + initials(p) + '</span>'; }
+  function initials(p) { return p.name.split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
+  function avatar(p) { return '<span class="avatar" style="--av:' + p.color + '" title="' + esc(p.name) + '">' + esc(initials(p)) + '</span>'; }
+
+  // Role letters used by seed data → the first matching person in this environment
+  function inDept(d, nth) { var list = people.filter(function (p) { return p.dept === d; }); return list[nth || 0] || list[0]; }
+  function role(r) {
+    var p = { S: inDept('Social'), M: inDept('Marketing'), P: inDept('Production'), P2: inDept('Production', 1), B: inDept('Brand services'), X: inDept('Sales') }[r];
+    return (p || people[0]).id;
+  }
 
   // ---------- seed posts ----------
-  var TITLES = {
-    instagram: ['Product carousel', 'Customer spotlight Reel', 'Behind the scenes Story', 'Styling tips Reel', 'UGC repost', 'Weekend mood board'],
-    tiktok: ['Trend remix', 'Day in the life', 'Packing orders', 'Founder Q&A clip', 'Get ready with me'],
-    youtube: ['How it’s made', 'Monthly vlog', 'Studio tour'],
-    x: ['Launch countdown', 'Industry hot take', 'Q&A thread'],
-    facebook: ['Event recap album', 'Community poll', 'Store hours update'],
-    threads: ['Behind the brand thread', 'Ask us anything'],
-    bluesky: ['Creator spotlight', 'Sneak peek'],
-    linkedin: ['Hiring post', 'Team milestone', 'Case study'],
-    pinterest: ['Styling boards', 'Outfit pins', 'Seasonal palette pins'],
-    email: ['Weekly newsletter', 'New arrivals email', 'VIP early access', 'Restock alert']
-  };
   // [typical reach, typical engagement rate] — email uses audience size and open rate
   var BASE = {
     instagram: [9000, .058], tiktok: [14000, .084], youtube: [6000, .047], x: [3000, .021], facebook: [4000, .026],
     threads: [2200, .041], bluesky: [1200, .045], linkedin: [2800, .032], pinterest: [3500, .019], email: [12000, .41]
   };
-  var WEIGHTS = [['instagram', 8], ['tiktok', 3], ['youtube', 1], ['x', 3], ['facebook', 3], ['threads', 2], ['bluesky', 1], ['linkedin', 2], ['pinterest', 2], ['email', 3]];
+  var WEIGHTS = [['instagram', 8], ['tiktok', 3], ['youtube', 1], ['x', 3], ['facebook', 3], ['threads', 2], ['bluesky', 1], ['linkedin', 2], ['pinterest', 2], ['email', 3]]
+    .filter(function (w) { return ENABLED.indexOf(w[0]) !== -1; });
   var OWNER = {
-    instagram: ['mc', 'd:Social'], tiktok: ['mc', 'd:Social'], youtube: ['dp', 'd:Production'], x: ['mc'], facebook: ['mc'],
-    threads: ['mc'], bluesky: ['sl'], linkedin: ['tw', 'd:Sales'], pinterest: ['sl', 'd:Brand services'], email: ['jr', 'd:Marketing']
+    instagram: ['S', 'd:Social'], tiktok: ['S', 'd:Social'], youtube: ['P', 'd:Production'], x: ['S'], facebook: ['S'],
+    threads: ['S'], bluesky: ['B'], linkedin: ['X', 'd:Sales'], pinterest: ['B', 'd:Brand services'], email: ['M', 'd:Marketing']
   };
+  function tagsFor(list) { return list.map(function (t) { return t.indexOf('d:') === 0 ? t : role(t); }).filter(function (t, i, a) { return a.indexOf(t) === i; }); }
   var TIMES = ['09:00', '11:30', '12:00', '15:00', '17:30', '19:00'];
   function weightedChannel() {
     var total = WEIGHTS.reduce(function (s, w) { return s + w[1]; }, 0), r = rand() * total;
     for (var i = 0; i < WEIGHTS.length; i++) { r -= WEIGHTS[i][1]; if (r <= 0) return WEIGHTS[i][0]; }
-    return 'instagram';
+    return WEIGHTS[0][0];
   }
 
   var nextId = 1;
   var posts = [];
-  for (var off = -70; off <= -1; off++) {
-    var day = addDays(TODAY, off), dow = parse(day).getDay();
-    var n = (dow === 0 || dow === 6) ? (rand() < .4 ? 1 : 0) : (rand() < .55 ? 1 : 2);
-    for (var k = 0; k < n; k++) {
-      var ch = weightedChannel(), b = BASE[ch];
-      var reach = Math.round(b[0] * (0.6 + rand() * 0.8) * (1 + (off + 70) / 300));
-      var rate = b[1] * (0.75 + rand() * 0.5) * (dow === 4 ? 1.3 : dow === 1 ? 0.85 : 1);
-      posts.push({
-        id: nextId++, title: pick(TITLES[ch]), channel: ch, date: day, time: pick(TIMES),
-        status: 'published', tags: OWNER[ch].slice(), notes: '',
-        reach: reach, engagements: Math.round(reach * rate)
-      });
+  if (ENV.data !== 'empty') {
+    var light = ENV.data === 'light';
+    for (var off = light ? -35 : -70; off <= -1; off++) {
+      var day = addDays(TODAY, off), dow = parse(day).getDay();
+      var n = (dow === 0 || dow === 6) ? (rand() < .4 ? 1 : 0) : (rand() < .55 ? 1 : 2);
+      if (light && rand() < .5) n = 0;
+      for (var k = 0; k < n; k++) {
+        var ch = weightedChannel(), b = BASE[ch];
+        var reach = Math.round(b[0] * (0.6 + rand() * 0.8) * (1 + (off + 70) / 300));
+        var rate = b[1] * (0.75 + rand() * 0.5) * (dow === 4 ? 1.3 : dow === 1 ? 0.85 : 1);
+        posts.push({
+          id: nextId++, title: pick(IND.titles[ch]), channel: ch, date: day, time: pick(TIMES),
+          status: 'published', tags: tagsFor(OWNER[ch]), notes: '',
+          reach: reach, engagements: Math.round(reach * rate)
+        });
+      }
     }
+    // [days from today, time, channel, status, tags]; titles come from the industry preset
+    var plan = [
+      [0, '11:30', 'instagram', 'scheduled', ['S', 'd:Social']],
+      [1, '09:00', 'email', 'review', ['M', 'd:Brand services']],
+      [2, '17:30', 'tiktok', 'production', ['S', 'P']],
+      [6, '12:00', 'youtube', 'production', ['P', 'P2', 'd:Production']],
+      [7, '11:30', 'instagram', 'production', ['S', 'd:Social']],
+      [7, '15:00', 'threads', 'brief', ['S']],
+      [8, '09:00', 'email', 'brief', ['M', 'd:Marketing']],
+      [9, '12:00', 'x', 'brief', ['X', 'd:Sales']],
+      [10, '15:00', 'facebook', 'idea', ['S']],
+      [11, '09:00', 'linkedin', 'brief', ['X', 'd:Sales']],
+      [13, '19:00', 'pinterest', 'idea', ['B', 'd:Brand services']],
+      [14, '11:30', 'instagram', 'idea', ['S', 'd:Production']],
+      [15, '09:00', 'email', 'idea', ['M', 'd:Marketing']],
+      [20, '17:30', 'tiktok', 'idea', ['S']],
+      [21, '12:00', 'bluesky', 'idea', ['B']],
+      [24, '11:30', 'instagram', 'idea', ['S', 'd:Social']]
+    ];
+    plan.forEach(function (f, i) {
+      if (light && i >= 8) return;
+      var c = ENABLED.indexOf(f[2]) !== -1 ? f[2] : (SOCIAL[i % Math.max(1, SOCIAL.length)] || ENABLED[0]);
+      posts.push({ id: nextId++, date: addDays(TODAY, f[0]), time: f[1], channel: c, title: IND.future[i], status: f[3], tags: tagsFor(f[4]), notes: '' });
+    });
   }
-  [
-    [0, '11:30', 'instagram', 'Fall drop teaser', 'scheduled', ['mc', 'd:Social']],
-    [1, '09:00', 'email', 'Newsletter #41', 'review', ['jr', 'd:Brand services']],
-    [2, '17:30', 'tiktok', 'Studio day BTS', 'production', ['mc', 'dp']],
-    [6, '12:00', 'youtube', 'Fall lookbook film', 'production', ['dp', 'ak', 'd:Production']],
-    [7, '11:30', 'instagram', 'Launch carousel', 'production', ['mc', 'd:Social']],
-    [7, '15:00', 'threads', 'Launch thread', 'brief', ['mc']],
-    [8, '09:00', 'email', 'Launch email', 'brief', ['jr', 'd:Marketing']],
-    [9, '12:00', 'x', 'Live Q&A', 'brief', ['tw', 'd:Sales']],
-    [10, '15:00', 'facebook', 'Launch event recap', 'idea', ['mc']],
-    [11, '09:00', 'linkedin', 'Customer case study', 'brief', ['tw', 'd:Sales']],
-    [13, '19:00', 'pinterest', 'Gift guide pins', 'idea', ['sl', 'd:Brand services']],
-    [14, '11:30', 'instagram', 'Gift guide Reel', 'idea', ['mc', 'd:Production']],
-    [15, '09:00', 'email', 'Holiday gift guide', 'idea', ['jr', 'd:Marketing']],
-    [20, '17:30', 'tiktok', 'Holiday trend remix', 'idea', ['mc']],
-    [21, '12:00', 'bluesky', 'Creator spotlight', 'idea', ['sl']],
-    [24, '11:30', 'instagram', 'Holiday countdown', 'idea', ['mc', 'd:Social']]
-  ].forEach(function (f) {
-    posts.push({ id: nextId++, date: addDays(TODAY, f[0]), time: f[1], channel: f[2], title: f[3], status: f[4], tags: f[5], notes: '' });
-  });
 
   // ---------- state ----------
   var state = {
@@ -133,54 +142,44 @@
     deptSettings: {},
     notifications: []
   };
-  DEPTS.forEach(function (d) { state.deptSettings[d] = { app: true, email: true, slack: d !== 'Sales' }; });
+  DEPTS.forEach(function (d) {
+    var s = ENV.notify[d] || '';
+    state.deptSettings[d] = { app: s.indexOf('a') !== -1, email: s.indexOf('e') !== -1, slack: s.indexOf('s') !== -1 };
+  });
 
+  var seeded = ENV.data !== 'empty';
+  var P = IND.project;
+  function crewName(r) { var p = person(role(r)); return p ? p.name : 'TBD'; }
   var project = {
-    name: 'Fall Lookbook Shoot',
+    name: P.name,
     shootDate: addDays(TODAY, 4),
-    brief: 'Capture the Fall collection in a warm, lived-in studio setting. Footage feeds the launch film, carousel, TikTok BTS and launch email hero.',
-    goals: ['Deliver 4 hero looks as stills, Reels and a 90-second film', 'Grow launch-week reach 25% over the Spring launch', 'Build a reusable library of 60+ approved selects'],
-    audience: 'Style-conscious 22–38 year olds who shop new drops on mobile.',
-    deliverables: ['Fall lookbook film', 'Launch carousel', 'Studio day BTS', 'Launch email'],
+    brief: P.brief,
+    goals: P.goals.slice(),
+    audience: P.audience,
+    deliverables: seeded ? [IND.future[3], IND.future[4], IND.future[2], IND.future[6]] : [],
     logistics: [
-      ['Location', 'Studio B, 214 Mercer St (loading dock on Mercer)'],
-      ['Call / wrap', '8:00 AM – 6:00 PM'],
-      ['Crew', 'Dev Patel (DP), Avery Kim (photo), 1 gaffer, 1 stylist, 1 HMU'],
-      ['Talent', '3 models, booked and contracts signed'],
-      ['Budget', '$8,500 (studio $2,200 · talent $3,600 · crew $2,100 · misc $600)'],
-      ['Permits', 'Not required for interior studio']
+      ['Location', P.location],
+      ['Call / wrap', niceTime(P.schedule[0][0]) + ' – ' + niceTime(P.schedule[P.schedule.length - 1][0])],
+      ['Crew', crewName('P') + ' (DP), ' + crewName('P2') + ' (camera), 1 gaffer, 1 stylist'],
+      ['Talent', P.talent],
+      ['Budget', P.budget]
     ],
-    schedule: [
-      { time: '08:00', item: 'Crew call and load-in', owner: 'dp' },
-      { time: '09:00', item: 'Hair, makeup and wardrobe', owner: 'sl' },
-      { time: '09:30', item: 'Looks 1–4: hero stills', owner: 'ak' },
-      { time: '12:30', item: 'Lunch', owner: '' },
-      { time: '13:30', item: 'Lookbook film: gimbal walk-throughs', owner: 'dp' },
-      { time: '15:30', item: 'BTS for TikTok and Stories', owner: 'mc' },
-      { time: '17:30', item: 'Wrap and strike', owner: 'dp' }
-    ],
-    equipment: [
-      { name: 'Sony FX3 camera body', qty: 2, status: 'Packed' },
-      { name: '24–70mm f/2.8 lens', qty: 1, status: 'Packed' },
-      { name: '85mm f/1.4 lens', qty: 1, status: 'Needed' },
-      { name: 'DJI RS 4 gimbal', qty: 1, status: 'Checked out' },
-      { name: 'Aputure 600d + softbox', qty: 2, status: 'Checked out' },
-      { name: 'V-mount batteries', qty: 6, status: 'Packed' },
-      { name: 'Seamless backdrop (warm grey)', qty: 1, status: 'Needed' }
-    ]
+    schedule: seeded ? P.schedule.map(function (r) { return { time: r[0], item: r[1], owner: r[2] ? role(r[2]) : '' }; }) : [],
+    equipment: seeded ? CSEnv.clone(CSEnv.KIT) : []
   };
 
-  var files = [
-    { name: 'Fall Lookbook – Creative brief.pdf', folder: 'Briefs', size: 1.2e6, owner: 'jr', updated: addDays(TODAY, -6) },
-    { name: 'Shot list v3.xlsx', folder: 'Briefs', size: 84e3, owner: 'dp', updated: addDays(TODAY, -2) },
-    { name: 'Call sheet – Studio B.pdf', folder: 'Briefs', size: 310e3, owner: 'dp', updated: addDays(TODAY, -1) },
-    { name: 'Moodboard – Fall.png', folder: 'Brand assets', size: 6.4e6, owner: 'sl', updated: addDays(TODAY, -9) },
-    { name: 'Northwind logo pack.zip', folder: 'Brand assets', size: 18.2e6, owner: 'sl', updated: addDays(TODAY, -40) },
-    { name: 'Brand guidelines 2026.pdf', folder: 'Brand assets', size: 9.8e6, owner: 'sl', updated: addDays(TODAY, -60) },
-    { name: 'Spring launch selects.zip', folder: 'Finals', size: 412e6, owner: 'ak', updated: addDays(TODAY, -120) },
-    { name: 'Newsletter #40 – final.html', folder: 'Finals', size: 46e3, owner: 'jr', updated: addDays(TODAY, -7) },
-    { name: 'Teaser_v2_vertical.mp4', folder: 'Raw footage', size: 286e6, owner: 'dp', updated: addDays(TODAY, -3) },
-    { name: 'Model release forms.pdf', folder: 'Contracts', size: 2.1e6, owner: 'jr', updated: addDays(TODAY, -5) }
+  var firstWord = ENV.company.split(/\s+/)[0];
+  var files = !seeded ? [] : [
+    { name: P.name + ' – Creative brief.pdf', folder: 'Briefs', size: 1.2e6, owner: role('M'), updated: addDays(TODAY, -6) },
+    { name: 'Shot list v3.xlsx', folder: 'Briefs', size: 84e3, owner: role('P'), updated: addDays(TODAY, -2) },
+    { name: 'Call sheet.pdf', folder: 'Briefs', size: 310e3, owner: role('P'), updated: addDays(TODAY, -1) },
+    { name: 'Moodboard.png', folder: 'Brand assets', size: 6.4e6, owner: role('B'), updated: addDays(TODAY, -9) },
+    { name: firstWord + ' logo pack.zip', folder: 'Brand assets', size: 18.2e6, owner: role('B'), updated: addDays(TODAY, -40) },
+    { name: 'Brand guidelines 2026.pdf', folder: 'Brand assets', size: 9.8e6, owner: role('B'), updated: addDays(TODAY, -60) },
+    { name: 'Last launch selects.zip', folder: 'Finals', size: 412e6, owner: role('P2'), updated: addDays(TODAY, -120) },
+    { name: 'Newsletter #40 – final.html', folder: 'Finals', size: 46e3, owner: role('M'), updated: addDays(TODAY, -7) },
+    { name: 'Teaser_v2_vertical.mp4', folder: 'Raw footage', size: 286e6, owner: role('P'), updated: addDays(TODAY, -3) },
+    { name: 'Release forms.pdf', folder: 'Contracts', size: 2.1e6, owner: role('M'), updated: addDays(TODAY, -5) }
   ];
   var FOLDERS = ['All', 'Briefs', 'Brand assets', 'Raw footage', 'Finals', 'Contracts'];
   function fmtSize(b) { return b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB'; }
@@ -215,11 +214,12 @@
 
   // seed a few notifications
   (function () {
+    if (!seeded) return;
     var seed = [
-      ['New project: Fall Lookbook Shoot', 'Created by Jordan Reyes', ['jr', 'd:Production', 'd:Social']],
-      ['You were assigned: Launch carousel', 'Due ' + nice(addDays(TODAY, 7)), ['mc']],
-      ['Ready for brand review: Newsletter #41', 'Publishes ' + nice(addDays(TODAY, 1)), ['d:Brand services']],
-      ['Deadline moved: Fall lookbook film', nice(addDays(TODAY, 5)) + ' → ' + nice(addDays(TODAY, 6)), ['dp', 'd:Production', 'd:Social']]
+      ['New project: ' + project.name, 'Created by ' + person(role('M')).name, [role('M'), 'd:Production', 'd:Social']],
+      ['You were assigned: ' + IND.future[4], 'Due ' + nice(addDays(TODAY, 7)), [role('S')]],
+      ['Ready for brand review: ' + IND.future[1], 'Publishes ' + nice(addDays(TODAY, 1)), ['d:Brand services']],
+      ['Deadline moved: ' + IND.future[3], nice(addDays(TODAY, 5)) + ' → ' + nice(addDays(TODAY, 6)), [role('P'), 'd:Production', 'd:Social']]
     ];
     seed.forEach(function (s, i) {
       notify(s[0], s[1], s[2], true);
@@ -298,7 +298,7 @@
     var gaps = {};
     gapRuns().forEach(function (r) { for (var d = r[0]; d <= r[1]; d = addDays(d, 1)) gaps[d] = 1; });
 
-    var opts = '<option value="all">All channels</option>' + Object.keys(CHANNELS).map(function (c) {
+    var opts = '<option value="all">All channels</option>' + ENABLED.map(function (c) {
       return '<option value="' + c + '"' + (state.calChannel === c ? ' selected' : '') + '>' + CHANNELS[c] + '</option>';
     }).join('');
 
@@ -485,9 +485,11 @@
   function renderAnalytics() {
     var from = addDays(TODAY, -30), cur = analyze(from, TODAY), prev = analyze(addDays(TODAY, -60), from);
     var recs = recommendations(cur);
-    var h = '<div class="connected"><small>Connected:</small>' + Object.keys(CHANNELS).map(function (c) {
+    var noData = !cur.posts && !prev.posts;
+    var h = '<div class="connected"><small>Connected:</small>' + ENABLED.map(function (c) {
       return '<span class="chip c-' + c + '">' + CHANNELS[c] + (c === 'email' ? ' (Klaviyo)' : '') + '</span>';
     }).join('') + '</div>';
+    if (noData) h += '<div class="notice" style="margin-bottom:14px">No published posts yet. Results appear here once connected channels start publishing, usually within a day.</div>';
 
     h += '<div class="kpi-row">' +
       '<div class="kpi-tile"><small>Posts published</small><strong>' + cur.posts + '</strong>' + delta(cur.posts, prev.posts) + '</div>' +
@@ -532,7 +534,7 @@
 
     // Channel table
     h += '<div class="panel" style="grid-column:1/-1"><h3>Channel mix</h3><p class="sub">Is effort going where results are?</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Channel</th><th class="num">Posts</th><th class="num">Share of posts</th><th class="num">Share of engagement</th><th class="num">Reach</th><th class="num">Eng. / open rate</th></tr></thead><tbody>' +
-      Object.keys(CHANNELS).map(function (c) {
+      ENABLED.map(function (c) {
         var b = cur.by[c]; if (!b.posts) return '';
         var isEmail = c === 'email';
         return '<tr><td><span class="chip c-' + c + '">' + CHANNELS[c] + '</span></td><td class="num">' + b.posts + '</td>' +
@@ -552,7 +554,7 @@
         openEntry(null, { date: date, channel: r.channel });
       });
     });
-    $$('#view [data-export]').forEach(wireExportButton);
+    $$('#view [data-export]').forEach(function (b) { if (b.dataset.export === 'xlsx' && !ENV.excel) b.hidden = true; wireExportButton(b); });
   }
 
   // Production
@@ -562,7 +564,7 @@
     var h = '<div class="proj-head"><h2>' + esc(project.name) + '</h2>' +
       '<span class="tag">Shoot ' + nice(project.shootDate, true) + (days >= 0 ? ' · in ' + days + ' days' : '') + '</span>' +
       '<span class="tag ' + (packed === project.equipment.length ? 'ok' : 'warn') + '">Gear ' + packed + '/' + project.equipment.length + ' packed</span>' +
-      '<span class="avatars">' + ['dp', 'ak', 'sl', 'mc'].map(function (id) { return avatar(person(id)); }).join('') + '</span></div>';
+      '<span class="avatars">' + [role('P'), role('P2'), role('B'), role('S')].filter(function (id, i, a) { return a.indexOf(id) === i; }).map(function (id) { return avatar(person(id)); }).join('') + '</span></div>';
     var tabs = [['brief', 'Brief & goals'], ['logistics', 'Logistics'], ['schedule', 'Production schedule'], ['equipment', 'Equipment']];
     h += '<div class="tabs" role="tablist">' + tabs.map(function (t) {
       return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' + (state.prodTab === t[0]) + '">' + t[1] + '</button>';
@@ -573,6 +575,7 @@
         '<h3 style="margin-top:18px">Goals</h3><ul class="check-list" style="margin-top:8px">' + project.goals.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul>' +
         '<h3 style="margin-top:18px">Audience</h3><p>' + esc(project.audience) + '</p>' +
         '<h3 style="margin-top:18px">Deliverables</h3><p class="sub">Linked to calendar entries. Status updates live.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Deliverable</th><th>Channel</th><th>Publish</th><th>Status</th></tr></thead><tbody>' +
+        (project.deliverables.length ? '' : '<tr><td colspan="4" class="empty">No deliverables linked yet. Link calendar entries to this project as you plan them.</td></tr>') +
         project.deliverables.map(function (title) {
           var p = posts.find(function (x) { return x.title === title; });
           if (!p) return '<tr><td>' + esc(title) + '</td><td colspan="3" class="muted">Removed from calendar</td></tr>';
@@ -585,6 +588,7 @@
     } else if (state.prodTab === 'schedule') {
       var sorted = project.schedule.slice().sort(function (a, b) { return a.time.localeCompare(b.time); });
       h += '<h3>Shoot day schedule · ' + nice(project.shootDate, true) + '</h3><div class="table-wrap" style="margin-top:12px"><table class="data-table"><thead><tr><th>Time</th><th>Activity</th><th>Owner</th></tr></thead><tbody>' +
+        (sorted.length ? '' : '<tr><td colspan="3" class="empty">Nothing scheduled yet. Add the first activity below.</td></tr>') +
         sorted.map(function (r) {
           var p = person(r.owner);
           return '<tr><td><strong>' + niceTime(r.time) + '</strong></td><td>' + esc(r.item) + '</td><td>' + (p ? avatar(p) + ' ' + esc(p.name) : '<span class="muted">—</span>') + '</td></tr>';
@@ -594,6 +598,7 @@
         '<button class="btn btn-primary btn-sm" type="submit">Add</button></form>';
     } else {
       h += '<h3>Equipment list</h3><p class="sub">Update status as gear is pulled, packed and checked out.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Item</th><th class="num">Qty</th><th>Status</th></tr></thead><tbody>' +
+        (project.equipment.length ? '' : '<tr><td colspan="3" class="empty">No equipment yet. Add items below.</td></tr>') +
         project.equipment.map(function (e, i) {
           return '<tr><td>' + esc(e.name) + '</td><td class="num">' + e.qty + '</td><td><select data-eq="' + i + '" aria-label="Status for ' + esc(e.name) + '">' +
             ['Needed', 'Checked out', 'Packed', 'Returned'].map(function (s) { return '<option' + (s === e.status ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select></td></tr>';
@@ -651,7 +656,7 @@
     $('#file-up').addEventListener('change', function (e) {
       var added = Array.prototype.slice.call(e.target.files);
       added.forEach(function (f) {
-        files.push({ name: f.name, folder: state.fileFolder === 'All' ? 'Briefs' : state.fileFolder, size: f.size, owner: 'jr', updated: TODAY });
+        files.push({ name: f.name, folder: state.fileFolder === 'All' ? 'Briefs' : state.fileFolder, size: f.size, owner: role('M'), updated: TODAY });
       });
       if (added.length) notify(added.length + ' file' + (added.length > 1 ? 's' : '') + ' added to Fall Lookbook Shoot', added.map(function (f) { return f.name; }).join(', '), ['d:Production']);
       render();
@@ -688,7 +693,7 @@
 
   // ---------- entry dialog ----------
   var dlg = $('#entry-dialog'), form = $('#entry-form'), editing = null;
-  $('#f-channel').innerHTML = Object.keys(CHANNELS).map(function (c) { return '<option value="' + c + '">' + CHANNELS[c] + '</option>'; }).join('');
+  $('#f-channel').innerHTML = ENABLED.map(function (c) { return '<option value="' + c + '">' + CHANNELS[c] + '</option>'; }).join('');
   $('#f-status').innerHTML = STATUSES.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('');
   function fillTagChecks() {
     $('#f-people').innerHTML = people.map(function (p) { return '<label><input type="checkbox" name="tag" value="' + p.id + '">' + esc(p.name) + '</label>'; }).join('');
@@ -701,7 +706,7 @@
     preset = preset || {};
     $('#entry-dialog-title').textContent = p ? 'Edit calendar entry' : 'New calendar entry';
     $('#f-title').value = p ? p.title : '';
-    $('#f-channel').value = p ? p.channel : (preset.channel || (state.calChannel !== 'all' ? state.calChannel : 'instagram'));
+    $('#f-channel').value = p ? p.channel : (preset.channel || (state.calChannel !== 'all' ? state.calChannel : ENABLED[0]));
     $('#f-status').value = p ? p.status : 'idea';
     $('#f-date').value = p ? p.date : (preset.date || state.selDay || TODAY);
     $('#f-time').value = p ? (p.time || '') : '11:30';
@@ -789,11 +794,55 @@
       return '<div class="notif' + (n.unread ? ' unread' : '') + '"><b>' + esc(n.title) + '</b><span>' + esc(n.detail) + '</span><small>' + esc(n.who) + ' · ' + ago(n.at) + '</small><span class="via">Sent via ' + esc(n.via) + '</span></div>';
     }).join('') : '<p class="empty">No notifications for ' + esc(state.role) + ' yet.</p>';
   }
-  $('#bell').addEventListener('click', function () {
-    var p = $('#notif-panel'); p.hidden = !p.hidden;
-    $('#bell').setAttribute('aria-expanded', !p.hidden);
-    if (!p.hidden) renderNotifs();
+  // Notifications panel: docks beside the content on wide screens; drag its left edge (or use arrow keys) to resize
+  var notifPanel = $('#notif-panel'), appEl = $('.app'), notifHandle = $('#notif-resize');
+  var NOTIF_MIN = 260, NOTIF_DEFAULT = 360, NOTIF_KEY = 'cs-notif-w';
+  var dockQuery = window.matchMedia('(min-width: 1100px)');
+  function notifMax() { return Math.max(NOTIF_MIN, Math.min(640, window.innerWidth - (dockQuery.matches ? 620 : 24))); }
+  function setNotifWidth(w, save) {
+    w = Math.round(Math.min(notifMax(), Math.max(NOTIF_MIN, w)));
+    appEl.style.setProperty('--notif-w', w + 'px');
+    notifHandle.setAttribute('aria-valuenow', w);
+    notifHandle.setAttribute('aria-valuemax', notifMax());
+    if (save) { try { localStorage.setItem(NOTIF_KEY, String(w)); } catch (e) {} }
+  }
+  function setNotifOpen(open) {
+    notifPanel.hidden = !open;
+    appEl.classList.toggle('notif-open', open);
+    $('#bell').setAttribute('aria-expanded', String(open));
+    if (open) renderNotifs();
+  }
+  (function () {
+    var saved = NOTIF_DEFAULT;
+    try { saved = parseInt(localStorage.getItem(NOTIF_KEY), 10) || NOTIF_DEFAULT; } catch (e) {}
+    setNotifWidth(saved);
+  })();
+  window.addEventListener('resize', function () { setNotifWidth(parseInt(notifHandle.getAttribute('aria-valuenow'), 10) || NOTIF_DEFAULT); });
+  notifHandle.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    notifHandle.setPointerCapture(e.pointerId);
+    appEl.classList.add('resizing');
+    var right = notifPanel.getBoundingClientRect().right;
+    function move(ev) { setNotifWidth(right - ev.clientX); }
+    function up(ev) {
+      setNotifWidth(right - ev.clientX, true);
+      appEl.classList.remove('resizing');
+      notifHandle.removeEventListener('pointermove', move);
+      notifHandle.removeEventListener('pointerup', up);
+      notifHandle.removeEventListener('pointercancel', up);
+    }
+    notifHandle.addEventListener('pointermove', move);
+    notifHandle.addEventListener('pointerup', up);
+    notifHandle.addEventListener('pointercancel', up);
   });
+  notifHandle.addEventListener('keydown', function (e) {
+    var w = parseInt(notifHandle.getAttribute('aria-valuenow'), 10) || NOTIF_DEFAULT;
+    var next = { ArrowLeft: w + 24, ArrowRight: w - 24, Home: NOTIF_MIN, End: notifMax() }[e.key];
+    if (next != null) { e.preventDefault(); setNotifWidth(next, true); }
+  });
+  notifHandle.addEventListener('dblclick', function () { setNotifWidth(NOTIF_DEFAULT, true); });
+  $('#notif-close').addEventListener('click', function () { setNotifOpen(false); $('#bell').focus(); });
+  $('#bell').addEventListener('click', function () { setNotifOpen(notifPanel.hidden); });
   $('#mark-read').addEventListener('click', function () {
     visibleNotifs().forEach(function (n) { n.unread = false; }); renderBell(); renderNotifs();
   });
@@ -805,11 +854,11 @@
   });
   document.addEventListener('click', function (e) {
     if (!exportMenu.hidden && !exportMenu.contains(e.target)) { exportMenu.hidden = true; exportBtn.setAttribute('aria-expanded', 'false'); }
-    var np = $('#notif-panel');
-    if (!np.hidden && !np.contains(e.target) && !e.target.closest('#bell')) { np.hidden = true; $('#bell').setAttribute('aria-expanded', 'false'); }
+    // When docked the panel sits beside the content, so clicks elsewhere leave it open
+    if (!notifPanel.hidden && !dockQuery.matches && !notifPanel.contains(e.target) && !e.target.closest('#bell')) setNotifOpen(false);
   });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') { exportMenu.hidden = true; $('#notif-panel').hidden = true; }
+    if (e.key === 'Escape') { exportMenu.hidden = true; if (!notifPanel.hidden) setNotifOpen(false); }
   });
   function wireExportButton(b) {
     b.addEventListener('click', function () {
@@ -877,7 +926,7 @@
         ws.mergeCells('A1:' + span + '1');
         var t = ws.getCell('A1'); t.value = text; t.font = { bold: true, size: 16, color: { argb: 'FF820263' } };
         ws.getRow(1).height = 28;
-        var s = ws.getCell('A2'); s.value = 'Northwind Apparel · ' + nice(from) + ' – ' + nice(addDays(TODAY, -1)) + ' · Generated ' + new Date().toLocaleString('en-US');
+        var s = ws.getCell('A2'); s.value = ENV.company + ' · ' + nice(from) + ' – ' + nice(addDays(TODAY, -1)) + ' · Generated ' + new Date().toLocaleString('en-US');
         s.font = { italic: true, color: { argb: 'FF5E5C70' } };
       }
 
@@ -940,11 +989,22 @@
     });
   }
 
+  // ---------- environment branding ----------
+  (function () {
+    $('.ws-name strong').textContent = ENV.company;
+    $('.ws-name small').textContent = ENV.purpose === 'onboarding' ? 'Onboarding workspace' : 'Demo workspace';
+    $('.ws-dot').style.background = ENV.color;
+    if (CSEnv.fromUrl()) document.title = ENV.company + ' · Campaign Span demo';
+    if (ENV.banner) $('.demo-banner span').textContent = ENV.banner;
+    if (!ENV.excel) $$('[data-export="xlsx"]').forEach(function (b) { b.hidden = true; });
+    if (ENV_ERROR) setTimeout(function () { toast(ENV_ERROR); }, 300);
+  })();
+
   // ---------- routing ----------
   function route() {
     var v = location.hash.replace('#', '');
     state.view = TITLES_BY_VIEW[v] ? v : 'calendar';
-    $('#notif-panel').hidden = true;
+    if (!dockQuery.matches && !notifPanel.hidden) setNotifOpen(false);
     render();
   }
   window.addEventListener('hashchange', route);

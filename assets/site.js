@@ -24,6 +24,7 @@
         '<li class="has-dropdown">' +
           '<button class="nav-trigger" aria-expanded="false" aria-controls="about-menu">About ' + CHEVRON + '</button>' +
           '<div class="dropdown" id="about-menu">' +
+            '<a href="about.html"' + cur('about') + '>About us<small>Who we are and why we built Campaign Span</small></a>' +
             '<a href="features.html"' + cur('features') + '>Product features<small>Calendar, analytics, boards, production</small></a>' +
             '<hr>' +
             '<div class="dd-label">Role-specific benefits</div>' +
@@ -56,9 +57,10 @@
           '<p class="muted" style="margin-top:12px;font-size:.92rem">The content calendar your whole team actually uses — from brief to published to proven.</p></div>' +
         '<div><h4>Product</h4><ul><li><a href="features.html">Features</a></li><li><a href="integrations.html">Integrations</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="demo.html">Demo mode</a></li></ul></div>' +
         '<div><h4>Teams</h4><ul><li><a href="roles.html#production">Production</a></li><li><a href="roles.html#social">Social media</a></li><li><a href="roles.html#brand">Brand services</a></li><li><a href="roles.html#sales">Sales</a></li><li><a href="roles.html#marketing">Marketing</a></li></ul></div>' +
-        '<div><h4>Account</h4><ul><li><a href="login.html">Log in</a></li><li><a href="login.html#signup">Sign up</a></li></ul></div>' +
+        '<div><h4>Company</h4><ul><li><a href="about.html">About us</a></li><li><a href="mailto:hello@campaignspan.com">Contact</a></li><li><a href="login.html">Log in</a></li><li><a href="login.html#signup">Sign up</a></li></ul></div>' +
+        '<div><h4>Legal</h4><ul><li><a href="terms.html">Terms of service</a></li><li><a href="privacy.html">Privacy policy</a></li><li><a href="cookies.html">Cookie policy</a></li><li><a href="legal.html">Legal notice</a></li></ul></div>' +
       '</div>' +
-      '<div class="footer-bottom"><span>© ' + new Date().getFullYear() + ' Campaign Span</span><span>Web · Desktop · iOS · Android</span></div>' +
+      '<div class="footer-bottom"><span>© ' + new Date().getFullYear() + ' Campaign Span · Ontario, Canada · <a href="mailto:hello@campaignspan.com">hello@campaignspan.com</a></span><span>Web · Desktop · iOS · Android</span></div>' +
     '</div>';
 
   var h = document.querySelector('[data-site-header]');

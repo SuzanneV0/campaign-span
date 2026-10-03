@@ -64,7 +64,8 @@
   </section>
 
   <aside class="notif-panel" id="notif-panel" hidden aria-label="Notifications">
-    <div class="notif-head"><strong>Notifications</strong><button class="btn btn-ghost btn-sm" type="button" id="mark-read">Mark all read</button></div>
+    <div class="notif-resize" id="notif-resize" role="separator" aria-orientation="vertical" aria-label="Resize notifications panel" aria-valuemin="260" aria-valuemax="640" aria-valuenow="360" tabindex="0" title="Drag to resize, double-click to reset"></div>
+    <div class="notif-head"><strong>Notifications</strong><span style="flex:1"></span><button class="btn btn-ghost btn-sm" type="button" id="mark-read">Mark all read</button><button class="icon-btn" type="button" id="notif-close" aria-label="Close notifications">✕</button></div>
     <div id="notif-list"></div>
   </aside>
 </main>
@@ -104,6 +105,7 @@
 <div class="tip" id="tip" role="tooltip" hidden></div>
 
 <script src="assets/site.js"></script>
+<script src="assets/env.js"></script>
 <script src="assets/demo.js"></script>
 </body>
 </html>

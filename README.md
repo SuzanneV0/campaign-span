@@ -13,6 +13,9 @@ Static marketing website and interactive demo for **Campaign Span**, a content m
 | Pricing | `pricing.html` |
 | Demo mode (interactive sample workspace) | `demo.html` |
 | Log in / Sign up | `login.html` |
+| About us | `about.html` |
+| Terms of service, Privacy policy, Cookie policy, Legal notice | `terms.html`, `privacy.html`, `cookies.html`, `legal.html` |
+| Admin console (not linked from the site, `noindex`) | `admin.html` |
 
 The header and footer for every page come from `assets/site.js`. The dark/light toggle is in the header, and the choice is remembered per browser.
 
@@ -28,6 +31,17 @@ The header and footer for every page come from `assets/site.js`. The dark/light 
 - **Team**: department roles and per-department App / Email / Slack notification settings
 - **Required tagging**: every entry must tag a person or department; tagged people get notified
 - **Export**: formatted `.xlsx` (via ExcelJS from cdnjs) and `.csv`
+
+## Admin console
+
+`admin.html` + `assets/admin.js` is an internal tool for sales and customer success:
+
+- **Demo environments**: build a tailored demo (company, industry, brand colour, channels, the client's own team, notification defaults, banner, sample-data level) and share it as a link. The whole configuration travels inside the link (`demo.html?env=…`, defined in `assets/env.js`), so it works on any device with no server.
+- **Client onboarding**: empty workspaces with a 9-step onboarding checklist and progress tracking.
+- **Troubleshooting**: live health checks (pages, scripts, CDNs, browser support), a demo-link inspector, and browser details to collect from clients.
+- **Service settings**: defaults for new environments, links to hosting/code/DNS, and an activity log.
+
+Saved environments live in the admin's browser (`localStorage`); use Export/Import JSON to back up or share them. The page holds no secrets and isn't password-protected, so treat it as a tool, not a vault. Real customer accounts, billing and access control need the production backend.
 
 ## Run locally
 

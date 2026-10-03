@@ -469,3 +469,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--link); outl
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Long-form pages (About, legal) */
+.prose-wrap { display: grid; gap: 40px; padding: 8px 0 72px; }
+@media (min-width: 960px) { .prose-wrap { grid-template-columns: 220px minmax(0, 1fr); gap: 56px; } }
+.toc { position: sticky; top: 92px; align-self: start; font-size: .9rem; }
+.toc strong { display: block; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 10px; }
+.toc ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.toc a { color: var(--muted); font-weight: 600; }
+.toc a:hover { color: var(--link); }
+@media (max-width: 959px) { .toc { position: static; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; } }
+.prose { max-width: 740px; font-size: 1.02rem; }
+.prose h2 { font-size: 1.45rem; margin: 40px 0 12px; scroll-margin-top: 92px; }
+.prose h2:first-child { margin-top: 0; }
+.prose h3 { font-size: 1.08rem; margin: 24px 0 8px; }
+.prose p, .prose li { color: var(--text); }
+.prose ul, .prose ol { padding-left: 22px; margin: 0 0 1em; display: grid; gap: 6px; }
+.prose table { margin: 8px 0 20px; font-size: .92rem; }
+.prose .table-wrap { margin: 8px 0 20px; }
+.prose .table-wrap table { margin: 0; }
+.updated { color: var(--muted); font-size: .92rem; margin-top: 12px; }
+.contact-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin: 12px 0 0; }
+.contact-card p { margin: 0; }
+.values { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); margin: 16px 0 8px; }

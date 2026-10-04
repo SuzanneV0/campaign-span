@@ -604,7 +604,13 @@
     if (!user) {
       me = null; handledUser = null; store = { envs: [], log: [], defaults: null }; view.innerHTML = '';
       show('clerk-sign-in');
-      if (!signInMounted) { clerk.mountSignIn($('#clerk-sign-in'), { forceRedirectUrl: location.href }); signInMounted = true; }
+      if (!signInMounted) { clerk.mountSignIn($('#clerk-sign-in'), {
+          forceRedirectUrl: location.href,
+          // Sign-in only: an unknown Google account isn't turned into a new account, and there's no sign-up link.
+          transferable: false,
+          withSignUp: false,
+          appearance: { elements: { footerAction: { display: 'none' } } }
+        }); signInMounted = true; }
       return;
     }
     if (handledUser === user.id) return;

@@ -1,7 +1,7 @@
 /* Campaign Span — admin console.
    Builds custom demo and onboarding environments, tracks onboarding, runs health checks.
-   Sign-in and data are handled by Supabase (project "campaign-span", Canada region). Only accounts on the
-   admin_users allowlist can read or write anything; row-level security enforces this in the database. */
+   Admins sign in with Clerk. Data lives in a Turso database behind /api/admin (Vercel Functions), which checks
+   the Clerk session and the ADMIN_EMAILS list on every request, so the browser never touches the database. */
 (function () {
   'use strict';
 
@@ -26,15 +26,22 @@
   var PURPOSE = { sales: 'Sales demo', onboarding: 'Client onboarding' };
   var DATA_LABEL = { full: 'Full history', light: 'Light', empty: 'Empty' };
 
-  // ---------- Supabase ----------
-  // The URL and publishable (anon) key are public by design; the database's row-level security does the protecting.
-  var SUPABASE_URL = 'https://mrikvtrhvmhuxkcdljhr.supabase.co';
-  var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yaWt2dHJodm1odXhrY2RsamhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5OTkwOTAsImV4cCI6MjEwNjU3NTA5MH0.TTx6YcKp8mt7tB-ps3amsmlbwaMgoi3SanKxFpAMhCs';
-  // Read invite/reset tokens before the Supabase client consumes and clears them from the URL
-  var landingHash = location.hash;
-  var sb = window.supabase && window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' }
-  });
+  // ---------- Clerk + admin API ----------
+  var clerk = null;
+  function api(method, body, query) {
+    return clerk.session.getToken().then(function (token) {
+      return fetch('/api/admin' + (query || ''), {
+        method: method,
+        headers: Object.assign({ Authorization: 'Bearer ' + token }, body ? { 'Content-Type': 'application/json' } : {}),
+        body: body ? JSON.stringify(body) : undefined
+      });
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (!r.ok) { var e = new Error(data.error || ('Request failed (' + r.status + ')')); e.status = r.status; e.data = data; throw e; }
+        return data;
+      });
+    });
+  }
   var me = null; // signed-in admin's email
 
   // ---------- storage ----------
@@ -52,38 +59,25 @@
       created: Date.parse(r.created_at), updated: Date.parse(r.updated_at) };
   }
   function load() {
-    return Promise.all([
-      sb.from('admin_environments').select('*').order('updated_at', { ascending: false }),
-      sb.from('admin_log').select('at,msg,actor').order('at', { ascending: false }).limit(60),
-      sb.from('admin_settings').select('value').eq('key', 'defaults').maybeSingle()
-    ]).then(function (res) {
-      var err = res.find(function (r) { return r.error; });
-      if (err) throw err.error;
-      store.envs = res[0].data.map(fromRow);
-      store.log = res[1].data.map(function (l) { return { at: Date.parse(l.at), msg: l.msg, actor: l.actor }; });
-      store.defaults = res[2].data ? res[2].data.value : null;
+    return api('GET').then(function (data) {
+      me = data.me;
+      store.envs = data.envs.map(fromRow);
+      store.log = data.log.map(function (l) { return { at: Date.parse(l.at), msg: l.msg, actor: l.actor }; });
+      store.defaults = data.defaults;
     });
   }
   // Writes are batched: every change calls save(), which upserts the environments shortly after.
   function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 250); }
   function flush() {
     if (!me) return;
-    var jobs = [];
-    if (store.envs.length) jobs.push(sb.from('admin_environments').upsert(store.envs.map(toRow)));
-    if (pendingDeletes.length) jobs.push(sb.from('admin_environments').delete().in('id', pendingDeletes.splice(0)));
-    jobs.push(store.defaults
-      ? sb.from('admin_settings').upsert({ key: 'defaults', value: store.defaults, updated_at: new Date().toISOString() })
-      : sb.from('admin_settings').delete().eq('key', 'defaults'));
-    saving = Promise.all(jobs).then(function (res) {
-      var err = res.find(function (r) { return r.error; });
-      if (err) toast('Couldn\u2019t save changes', err.error.message + '. Check your connection and try again.');
-    });
+    saving = api('POST', { action: 'save', envs: store.envs.map(toRow), deletes: pendingDeletes.splice(0), defaults: store.defaults })
+      .catch(function (err) { toast('Couldn\u2019t save changes', err.message + ' Check your connection and try again.'); });
     return saving;
   }
   function log(msg) {
     store.log.unshift({ at: Date.now(), msg: msg, actor: me });
     store.log = store.log.slice(0, 60);
-    if (me) sb.from('admin_log').insert({ msg: String(msg).slice(0, 500) }).then(function () {});
+    if (me) api('POST', { action: 'log', msg: String(msg).slice(0, 500) }).catch(function () {});
     save();
   }
   function defaults() { return E.normalize(store.defaults || E.DEFAULT); }
@@ -335,12 +329,10 @@
           return bad.length ? ['fail', 'Missing: ' + bad.map(function (b) { return b[0]; }).join(', ')] : ['pass', 'All ' + res.length + ' files load'];
         });
     });
-    add('Admin database (Supabase)', function () {
-      var t0 = performance.now();
-      return sb.from('admin_environments').select('id', { count: 'exact', head: true }).then(function (r) {
-        if (r.error) return ['fail', 'Couldn\u2019t reach the admin database: ' + r.error.message];
-        return ['pass', 'Connected in ' + Math.round(performance.now() - t0) + ' ms. ' + r.count + ' environment(s) stored'];
-      });
+    add('Admin database (Turso)', function () {
+      return api('GET', null, '?action=health').then(function (r) {
+        return ['pass', 'Connected in ' + r.ms + ' ms. ' + r.count + ' environment(s) stored'];
+      }, function (err) { return ['fail', 'Couldn\u2019t reach the admin database: ' + err.message]; });
     });
     add('Excel export library (cdnjs)', function () {
       return fetchStatus('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js', { method: 'HEAD' })
@@ -595,117 +587,69 @@
   }
   window.addEventListener('hashchange', function () { if (me) route(); });
 
-  // ---------- sign-in ----------
-  var screens = ['auth-loading', 'login-form', 'forgot-form', 'setpw-form', 'denied'];
+  // ---------- sign-in (Clerk) ----------
+  var screens = ['auth-loading', 'clerk-sign-in', 'denied'];
   function show(which) {
     var signedIn = which === 'app';
     $('#auth-screen').hidden = signedIn;
     $('#main').hidden = !signedIn;
     $('#who').hidden = $('#sign-out').hidden = !signedIn;
     screens.forEach(function (id) { $('#' + id).hidden = id !== which; });
-    var first = !signedIn && $('#' + which + ' input');
-    if (first) first.focus();
+    if (which !== 'clerk-sign-in') authError($('#login-error'), '');
   }
   function authError(el, msg) { el.textContent = msg; el.hidden = !msg; }
-  function friendly(err) {
-    var m = (err && err.message) || String(err);
-    if (/invalid login credentials/i.test(m)) return 'That email and password don\u2019t match an admin account.';
-    if (/email not confirmed/i.test(m)) return 'This email hasn\u2019t been confirmed yet. Use the link in your invitation email first.';
-    if (/rate limit|too many/i.test(m)) return 'Too many attempts. Wait a few minutes and try again.';
-    if (/failed to fetch|network/i.test(m)) return 'Can\u2019t reach the sign-in service. Check your connection.';
-    return m;
-  }
 
-  var recovering = false, handledUser = null;
-  function handleSession(session) {
-    if (recovering) return;
-    if (!session) { me = null; handledUser = null; show('login-form'); return; }
-    if (handledUser === session.user.id) return;
-    handledUser = session.user.id;
+  var handledUser = null, signInMounted = false;
+  function handleUser(user) {
+    if (!user) {
+      me = null; handledUser = null; store = { envs: [], log: [], defaults: null }; view.innerHTML = '';
+      show('clerk-sign-in');
+      if (!signInMounted) { clerk.mountSignIn($('#clerk-sign-in'), { forceRedirectUrl: location.href }); signInMounted = true; }
+      return;
+    }
+    if (handledUser === user.id) return;
+    handledUser = user.id;
+    if (signInMounted) { clerk.unmountSignIn($('#clerk-sign-in')); signInMounted = false; }
     show('auth-loading');
-    sb.rpc('is_admin').then(function (r) {
-      if (r.error) throw r.error;
-      if (!r.data) { $('#denied-email').textContent = session.user.email; show('denied'); return; }
-      me = session.user.email;
+    load().then(function () {
       $('#who').textContent = me;
-      return load().then(function () { show('app'); route(); });
+      show('app'); route();
     }).catch(function (err) {
       handledUser = null;
-      show('login-form');
-      authError($('#login-error'), friendly(err));
+      if (err.status === 403) { $('#denied-email').textContent = (err.data && err.data.email) || ''; show('denied'); return; }
+      show('clerk-sign-in');
+      authError($('#login-error'), err.message);
     });
   }
-
-  $('#login-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var btn = e.target.querySelector('button[type=submit]'), err = $('#login-error');
-    authError(err, '');
-    var email = $('#login-email').value.trim(), pw = $('#login-password').value;
-    if (!email || !pw) { authError(err, 'Enter your email and password.'); return; }
-    btn.disabled = true; btn.textContent = 'Signing in\u2026';
-    sb.auth.signInWithPassword({ email: email, password: pw }).then(function (r) {
-      btn.disabled = false; btn.textContent = 'Sign in';
-      if (r.error) { authError(err, friendly(r.error)); $('#login-password').select(); return; }
-      $('#login-password').value = '';
-      handleSession(r.data.session);
-    });
-  });
-  $('#show-forgot').addEventListener('click', function () { $('#forgot-email').value = $('#login-email').value; authError($('#forgot-msg'), ''); show('forgot-form'); });
-  $('#back-to-login').addEventListener('click', function () { show('login-form'); });
-  $('#forgot-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var email = $('#forgot-email').value.trim(), msg = $('#forgot-msg');
-    if (!email) { authError(msg, 'Enter your email.'); return; }
-    sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }).then(function (r) {
-      if (r.error && !/rate limit/i.test(r.error.message)) { authError(msg, friendly(r.error)); return; }
-      msg.className = 'notice ok';
-      authError(msg, 'If that email has an admin account, a reset link is on its way. It expires in one hour.');
-    });
-  });
-  $('#setpw-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var a = $('#setpw-1').value, b = $('#setpw-2').value, err = $('#setpw-error');
-    if (a.length < 10) { authError(err, 'Use at least 10 characters.'); return; }
-    if (a !== b) { authError(err, 'The two passwords don\u2019t match.'); return; }
-    sb.auth.updateUser({ password: a }).then(function (r) {
-      if (r.error) { authError(err, friendly(r.error)); return; }
-      recovering = false; handledUser = null;
-      $('#setpw-1').value = $('#setpw-2').value = '';
-      history.replaceState(null, '', location.pathname);
-      toast('Password saved');
-      sb.auth.getSession().then(function (s2) { handleSession(s2.data.session); });
-    });
-  });
-  function signOut() {
-    sb.auth.signOut().then(function () {
-      me = null; handledUser = null; store = { envs: [], log: [], defaults: null };
-      view.innerHTML = '';
-      show('login-form');
-    });
-  }
+  function signOut() { clerk.signOut(); }
   document.addEventListener('click', function (e) { if (e.target.closest('[data-sign-out]')) signOut(); });
 
-  if (!sb) {
-    show('login-form');
-    authError($('#login-error'), 'The sign-in service didn\u2019t load. Check your connection or ad blocker, then reload.');
-    $('#login-form button[type=submit]').disabled = true;
-  } else {
-    show('auth-loading');
-    sb.auth.onAuthStateChange(function (event, session) {
-      if (event === 'PASSWORD_RECOVERY') { recovering = true; show('setpw-form'); return; }
-      if (event === 'SIGNED_OUT') { handleSession(null); return; }
-      // Defer: calling Supabase inside this callback can deadlock the auth client
-      setTimeout(function () { handleSession(session); }, 0);
+  function loadScript(src, attrs) {
+    return new Promise(function (resolve, reject) {
+      var el = document.createElement('script');
+      el.src = src; el.crossOrigin = 'anonymous'; el.async = true;
+      Object.keys(attrs || {}).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+      el.onload = resolve; el.onerror = function () { reject(new Error('load')); };
+      document.head.appendChild(el);
     });
-    // Invite and reset links land here with type=invite|recovery in the URL hash
-    if (/type=(invite|recovery)/.test(landingHash)) { recovering = true; show('setpw-form'); }
-    var linkErr = landingHash.match(/error_description=([^&]+)/);
-    if (linkErr) {
-      history.replaceState(null, '', location.pathname);
-      setTimeout(function () {
-        show('login-form');
-        authError($('#login-error'), /expired|invalid/i.test(decodeURIComponent(linkErr[1])) ? 'That link has expired or was already used. Use “Forgot your password?” to get a new one.' : decodeURIComponent(linkErr[1].replace(/\+/g, ' ')));
-      }, 50);
-    }
   }
+  function signInUnavailable() {
+    show('clerk-sign-in');
+    authError($('#login-error'), 'The sign-in service didn\u2019t load. Check your connection or ad blocker, then reload.');
+  }
+
+  show('auth-loading');
+  // The publishable key comes from Vercel's settings; Clerk's Frontend API host is encoded inside it.
+  fetch('/api/config').then(function (r) { return r.json(); }).then(function (cfg) {
+    var key = cfg.clerkPublishableKey;
+    if (!key) throw new Error('missing key');
+    var fapi = atob(key.split('_').pop()).replace(/\$$/, '');
+    return loadScript('https://' + fapi + '/npm/@clerk/ui@1/dist/ui.browser.js')
+      .then(function () { return loadScript('https://' + fapi + '/npm/@clerk/clerk-js@6/dist/clerk.browser.js', { 'data-clerk-publishable-key': key }); })
+      .then(function () { return window.Clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor } }); });
+  }).then(function () {
+    clerk = window.Clerk;
+    clerk.addListener(function (state) { handleUser(state.user || null); });
+    handleUser(clerk.user || null);
+  }).catch(signInUnavailable);
 })();

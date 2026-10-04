@@ -41,24 +41,25 @@ The header and footer for every page come from `assets/site.js`. The dark/light 
 - **Troubleshooting**: live health checks (pages, scripts, CDNs, browser support), a demo-link inspector, and browser details to collect from clients.
 - **Service settings**: defaults for new environments, links to hosting/code/DNS, and an activity log.
 
-**Sign-in and storage** use Supabase (project `campaign-span`, region `ca-central-1`):
+**Sign-in and storage** use Clerk and Turso, through a small API in `api/` that runs as Vercel Functions:
 
-- Admins sign in with email and password. Only emails in the `admin_users` table get in; everyone else sees "no admin access".
-- Environments, onboarding progress, settings and the activity log live in `admin_environments`, `admin_settings` and `admin_log`, shared by all admins.
-- Row-level security on every table calls `is_admin()`, which requires a signed-in user whose confirmed email is on the allowlist. The publishable key in `assets/admin.js` is public by design.
+- Admins sign in with Clerk (the sign-in box on `admin.html`). The page asks `/api/config` for the Clerk publishable key, which is public by design.
+- `/api/admin` checks the Clerk session on every request and only lets in users with a verified email listed in the `ADMIN_EMAILS` setting; everyone else sees "no admin access". The browser never talks to the database directly.
+- Environments, onboarding progress, settings and the activity log live in the `admin_environments`, `admin_settings` and `admin_log` tables in Turso, shared by all admins. The tables are created automatically on first use.
 
-To add an admin: in Supabase, add a user under Authentication → Users, then run
-`insert into public.admin_users (email) values ('person@example.com');`
+Settings (Vercel → Settings → Environment Variables): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `ADMIN_EMAILS` (comma-separated).
+
+To add an admin: add their email to `ADMIN_EMAILS` and redeploy. They sign in with that email through Clerk.
 
 ## Run locally
 
-Any static file server works:
+Any static file server works for the marketing site and demo:
 
 ```bash
 npx http-server . -p 5180 -c-1
 ```
 
-Then open http://localhost:5180.
+Then open http://localhost:5180. The admin console also needs its API, so run it with `npx vercel dev` (after `npm install`) and the settings above in `.env.local`.
 
 ## Placeholders to replace before launch
 

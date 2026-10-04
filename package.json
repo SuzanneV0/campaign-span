@@ -1,0 +1,10 @@
+{
+  "name": "campaign-span-site",
+  "private": true,
+  "type": "module",
+  "description": "Campaign Span marketing site, demo and admin console. The admin console's API runs as Vercel Functions in api/.",
+  "dependencies": {
+    "@clerk/backend": "^3.22.0",
+    "@libsql/client": "^0.18.0"
+  }
+}

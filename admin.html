@@ -40,32 +40,11 @@
 
     <div id="auth-loading" class="empty" role="status">Checking your session…</div>
 
-    <form id="login-form" novalidate hidden>
-      <div class="field"><label for="login-email">Email</label><input type="email" id="login-email" autocomplete="username" required></div>
-      <div class="field"><label for="login-password">Password</label><input type="password" id="login-password" autocomplete="current-password" required></div>
-      <p class="form-error" id="login-error" role="alert" hidden></p>
-      <button class="btn btn-primary" type="submit" style="width:100%">Sign in</button>
-      <button class="link-btn" type="button" id="show-forgot">Forgot your password?</button>
-    </form>
-
-    <form id="forgot-form" novalidate hidden>
-      <p style="margin-top:0">Enter your admin email and we'll send a link to set a new password.</p>
-      <div class="field"><label for="forgot-email">Email</label><input type="email" id="forgot-email" autocomplete="username" required></div>
-      <p class="form-error" id="forgot-msg" role="status" hidden></p>
-      <button class="btn btn-primary" type="submit" style="width:100%">Send reset link</button>
-      <button class="link-btn" type="button" id="back-to-login">Back to sign-in</button>
-    </form>
-
-    <form id="setpw-form" novalidate hidden>
-      <p style="margin-top:0">Choose a new password for your admin account.</p>
-      <div class="field"><label for="setpw-1">New password</label><input type="password" id="setpw-1" autocomplete="new-password" minlength="10" required><span class="hint">At least 10 characters.</span></div>
-      <div class="field"><label for="setpw-2">Confirm password</label><input type="password" id="setpw-2" autocomplete="new-password" required></div>
-      <p class="form-error" id="setpw-error" role="alert" hidden></p>
-      <button class="btn btn-primary" type="submit" style="width:100%">Save password</button>
-    </form>
+    <div id="clerk-sign-in" hidden></div>
+    <p class="form-error" id="login-error" role="alert" hidden></p>
 
     <div id="denied" hidden>
-      <p class="notice" style="margin-top:0"><strong id="denied-email"></strong> is signed in but doesn't have admin access. Ask an existing admin to add this email.</p>
+      <p class="notice" style="margin-top:0"><strong id="denied-email"></strong> is signed in but doesn't have admin access. Ask an existing admin to add this email to the console's admin list.</p>
       <button class="btn btn-ghost" type="button" data-sign-out style="width:100%">Sign out</button>
     </div>
   </div>
@@ -82,7 +61,7 @@
     </nav>
     <div class="side-field">
       <label>Where data lives</label>
-      <small>Environments are saved to Campaign Span's admin database (Canada) and shared by all admins. Each one also travels inside its own demo link.</small>
+      <small>Environments are saved to Campaign Span's admin database and shared by all admins. Each one also travels inside its own demo link.</small>
     </div>
   </aside>
 
@@ -113,7 +92,6 @@
 
 <div class="toast-stack" id="toasts" aria-live="polite"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="assets/site.js"></script>
 <script src="assets/env.js"></script>
 <script src="assets/admin.js"></script>

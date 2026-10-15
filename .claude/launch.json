@@ -4,7 +4,7 @@
     {
       "name": "site",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "http-server", "C:/Users/suzan/Campaign Span", "-p", "5180", "-c-1", "--silent"],
+      "runtimeArgs": ["--yes", "http-server", ".", "-p", "5180", "-c-1", "--silent"],
       "port": 5180
     }
   ]

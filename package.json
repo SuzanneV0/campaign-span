@@ -6,5 +6,12 @@
   "dependencies": {
     "@clerk/backend": "^3.22.0",
     "@libsql/client": "^0.18.0"
+  },
+  "scripts": {
+    "test": "node --experimental-test-module-mocks --test tests/*.test.js",
+    "check": "for f in api/*.js; do node --check $f || exit 1; done"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

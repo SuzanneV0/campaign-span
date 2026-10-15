@@ -40,12 +40,11 @@
         '<li><a href="integrations.html"' + cur('integrations') + '>Integrations</a></li>' +
         '<li><a href="pricing.html"' + cur('pricing') + '>Pricing</a></li>' +
         '<li><a href="demo.html"' + cur('demo') + '>Demo mode</a></li>' +
-        '<li class="mobile-auth"><a class="btn btn-ghost" href="login.html">Log in</a><a class="btn btn-primary" href="login.html#signup">Sign up</a></li>' +
+        '<li class="mobile-auth"><a class="btn btn-primary" href="login.html">Join the waitlist</a></li>' +
       '</ul>' +
       '<div class="nav-actions">' +
         '<button class="icon-btn theme-toggle" type="button" aria-label="Switch between dark and light mode">' + SUN + MOON + '</button>' +
-        '<a class="btn btn-ghost btn-sm auth-link" href="login.html">Log in</a>' +
-        '<a class="btn btn-primary btn-sm auth-link" href="login.html#signup">Sign up</a>' +
+        '<a class="btn btn-primary btn-sm auth-link" href="login.html">Join the waitlist</a>' +
         '<button class="icon-btn menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-links">' + MENU + '</button>' +
       '</div>' +
     '</div>';
@@ -57,7 +56,7 @@
           '<p class="muted" style="margin-top:12px;font-size:.92rem">The content calendar your whole team actually uses — from brief to published to proven.</p></div>' +
         '<div><h4>Product</h4><ul><li><a href="features.html">Features</a></li><li><a href="integrations.html">Integrations</a></li><li><a href="pricing.html">Pricing</a></li><li><a href="demo.html">Demo mode</a></li></ul></div>' +
         '<div><h4>Teams</h4><ul><li><a href="roles.html#production">Production</a></li><li><a href="roles.html#social">Social media</a></li><li><a href="roles.html#brand">Brand services</a></li><li><a href="roles.html#sales">Sales</a></li><li><a href="roles.html#marketing">Marketing</a></li></ul></div>' +
-        '<div><h4>Company</h4><ul><li><a href="about.html">About us</a></li><li><a href="mailto:hello@campaignspan.com">Contact</a></li><li><a href="login.html">Log in</a></li><li><a href="login.html#signup">Sign up</a></li></ul></div>' +
+        '<div><h4>Company</h4><ul><li><a href="about.html">About us</a></li><li><a href="mailto:hello@campaignspan.com">Contact</a></li><li><a href="login.html">Join the waitlist</a></li></ul></div>' +
         '<div><h4>Legal</h4><ul><li><a href="terms.html">Terms of service</a></li><li><a href="privacy.html">Privacy policy</a></li><li><a href="cookies.html">Cookie policy</a></li><li><a href="legal.html">Legal notice</a></li></ul></div>' +
       '</div>' +
       '<div class="footer-bottom"><span>© ' + new Date().getFullYear() + ' Campaign Span · Ontario, Canada · <a href="mailto:hello@campaignspan.com">hello@campaignspan.com</a></span><span>Web · Desktop · iOS · Android</span></div>' +

@@ -2,6 +2,14 @@
 
 Static marketing website and interactive demo for **Campaign Span**, a content marketing app with a team content calendar, kanban boards, connected analytics and recommendations, production planning, and Excel/CSV reporting.
 
+## Current status and scope
+
+**This repository contains a marketing website and interactive product demo, not a complete production SaaS application.** The demo uses sample data in the browser and resets on reload. Public product log-in/sign-up forms are not connected to a backend; the separate admin console has its own authenticated API and storage.
+
+Pricing, testimonial-style quotes, and product imagery include placeholders. See the launch checklist below for details.
+
+**[Explore the live site and demo](https://campaign-span.vercel.app)**
+
 ## Pages
 
 | Page | File |

@@ -393,6 +393,7 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: 
 tr:last-child td { border-bottom: 0; }
 td.yes { color: var(--ok); font-weight: 700; }
 td.tbd { color: var(--warn); font-weight: 600; }
+.shot-note { font-size: .8rem; color: var(--faint); text-align: center; padding: 8px 12px 10px; border-top: 1px solid var(--border); }
 td.no { color: var(--faint); }
 
 /* Sub-nav pills */
@@ -408,7 +409,8 @@ td.no { color: var(--faint); }
 .role { display: grid; gap: 32px; padding: 64px 0; border-top: 1px solid var(--border); }
 .role:first-of-type { border-top: 0; }
 @media (min-width: 900px) { .role { grid-template-columns: 1fr 1.3fr; gap: 56px; } }
-.role .quote { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; color: var(--muted); font-style: italic; margin-top: 20px; }
+.role .payoff { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; color: var(--muted); margin-top: 20px; }
+.role .payoff strong { color: var(--text); }
 .pain-gain { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
 .pain-gain h4 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 10px; }
 .pain-gain ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }

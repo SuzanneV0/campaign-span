@@ -1,4 +1,4 @@
-// Shared helpers for the admin console's API (Vercel Functions). Files starting with "_" aren't routes.
+// Shared helpers for the site's API (Vercel Functions): the admin console and the waitlist. Files starting with "_" aren't routes.
 //
 // Settings (Vercel → Settings → Environment Variables):
 //   TURSO_DATABASE_URL, TURSO_AUTH_TOKEN   the admin database
@@ -10,7 +10,7 @@ import { createClerkClient, verifyToken } from '@clerk/backend';
 let db = null;
 let schemaReady = null;
 
-// Same three tables as before. Created on first use, so a fresh database needs no setup step.
+// Created on first use, so a fresh database needs no setup step.
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS admin_environments (
   id TEXT PRIMARY KEY,
@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS admin_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE TABLE IF NOT EXISTS waitlist (
+  email TEXT PRIMARY KEY CHECK (length(email) <= 254),
+  name TEXT NOT NULL DEFAULT '' CHECK (length(name) <= 80),
+  company TEXT NOT NULL DEFAULT '' CHECK (length(company) <= 80),
+  dept TEXT NOT NULL DEFAULT '',
+  team_size TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );`;
 
 export async function database() {

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Log in or sign up — Campaign Span</title>
-  <meta name="description" content="Log in to Campaign Span or create a new workspace.">
+  <title>Join the waitlist — Campaign Span</title>
+  <meta name="description" content="Join the Campaign Span early-access waitlist and hear first when accounts open.">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,14 +13,8 @@
   <script>try{var t=localStorage.getItem('cs-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
   <style>
     .auth-wrap { max-width: 460px; margin: 0 auto; padding: 64px 16px 40px; }
-    .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 999px; padding: 4px; margin-bottom: 24px; border: 1px solid var(--border); }
-    .auth-tabs button { font: inherit; font-weight: 700; border: 0; background: none; padding: 10px; border-radius: 999px; color: var(--muted); cursor: pointer; }
-    .auth-tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
-    .divider { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: .85rem; margin: 18px 0; }
-    .divider::before, .divider::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
-    .sso { display: grid; gap: 10px; }
-    .sso .btn { width: 100%; }
     form .btn-primary { width: 100%; }
+    .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
   </style>
 </head>
 <body>
@@ -28,48 +22,38 @@
 
 <main id="main">
   <div class="auth-wrap">
-    <h1 style="font-size:2rem;text-align:center" id="auth-title">Welcome back</h1>
-    <p class="muted center" id="auth-sub" style="margin-bottom:28px">Log in to your Campaign Span workspace.</p>
-
-    <div class="auth-tabs" role="tablist" aria-label="Account">
-      <button role="tab" id="tab-login" aria-selected="true" aria-controls="panel-login">Log in</button>
-      <button role="tab" id="tab-signup" aria-selected="false" aria-controls="panel-signup">Sign up</button>
-    </div>
+    <span class="eyebrow" style="display:block;text-align:center">Early access</span>
+    <h1 style="font-size:2rem;text-align:center">Join the waitlist</h1>
+    <p class="muted center" style="margin-bottom:28px">Campaign Span accounts aren't open yet. Leave your details and we'll email you when your team can start.</p>
 
     <div class="card">
-      <div class="sso">
-        <button class="btn btn-ghost" type="button" data-placeholder>Continue with Google</button>
-        <button class="btn btn-ghost" type="button" data-placeholder>Continue with Microsoft</button>
-      </div>
-      <div class="divider">or</div>
-
-      <form id="panel-login" role="tabpanel" aria-labelledby="tab-login" novalidate>
-        <div class="field"><label for="li-email">Work email</label><input id="li-email" type="email" autocomplete="email" required></div>
-        <div class="field"><label for="li-pass">Password</label><input id="li-pass" type="password" autocomplete="current-password" required></div>
-        <button class="btn btn-primary" type="submit">Log in</button>
-        <p class="muted center" style="font-size:.88rem;margin:14px 0 0"><a href="#" data-placeholder>Forgot password?</a></p>
-      </form>
-
-      <form id="panel-signup" role="tabpanel" aria-labelledby="tab-signup" hidden novalidate>
-        <div class="field"><label for="su-name">Full name</label><input id="su-name" type="text" autocomplete="name" required></div>
-        <div class="field"><label for="su-email">Work email</label><input id="su-email" type="email" autocomplete="email" required></div>
-        <div class="field"><label for="su-company">Company</label><input id="su-company" type="text" autocomplete="organization"></div>
+      <form id="waitlist" novalidate>
+        <div class="field"><label for="wl-name">Full name</label><input id="wl-name" name="name" type="text" autocomplete="name" maxlength="80" required></div>
+        <div class="field"><label for="wl-email">Work email</label><input id="wl-email" name="email" type="email" autocomplete="email" maxlength="254" required></div>
+        <div class="field"><label for="wl-company">Company</label><input id="wl-company" name="company" type="text" autocomplete="organization" maxlength="80"></div>
         <div class="field">
-          <label for="su-dept">Your department</label>
-          <select id="su-dept" required>
+          <label for="wl-dept">Your department</label>
+          <select id="wl-dept" name="dept">
             <option value="">Choose a department…</option>
             <option>Production</option><option>Social media</option><option>Brand services</option><option>Sales</option><option>Marketing</option><option>Other</option>
           </select>
-          <span class="hint">Sets your default views and the department notifications you receive.</span>
         </div>
-        <div class="field"><label for="su-pass">Password</label><input id="su-pass" type="password" autocomplete="new-password" minlength="8" required><span class="hint">At least 8 characters.</span></div>
-        <button class="btn btn-primary" type="submit">Create workspace</button>
+        <div class="field">
+          <label for="wl-size">Team size</label>
+          <select id="wl-size" name="teamSize">
+            <option value="">Choose a size…</option>
+            <option>1–5</option><option>6–25</option><option>26–100</option><option>100+</option>
+          </select>
+        </div>
+        <div class="hp" aria-hidden="true"><label for="wl-website">Leave this empty</label><input id="wl-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+        <button class="btn btn-primary" type="submit">Join the waitlist</button>
+        <p class="muted" style="font-size:.85rem;margin:14px 0 0">We'll only use this to tell you about early access. See our <a href="privacy.html#waitlist">privacy policy</a>.</p>
       </form>
 
-      <div id="auth-msg" class="notice" style="margin-top:16px" hidden></div>
+      <div id="wl-msg" class="notice" role="status" hidden></div>
     </div>
 
-    <p class="muted center" style="margin-top:20px;font-size:.92rem">Just looking? <a href="demo.html">Try the demo</a>. No account needed.</p>
+    <p class="muted center" style="margin-top:20px;font-size:.92rem">Want to look around first? <a href="demo.html">Try the demo</a>. No account needed.</p>
   </div>
 </main>
 
@@ -77,38 +61,28 @@
 <script src="assets/site.js"></script>
 <script>
   (function () {
-    var tabs = { login: document.getElementById('tab-login'), signup: document.getElementById('tab-signup') };
-    var panels = { login: document.getElementById('panel-login'), signup: document.getElementById('panel-signup') };
-    var msg = document.getElementById('auth-msg');
-    function show(which) {
-      Object.keys(tabs).forEach(function (k) {
-        tabs[k].setAttribute('aria-selected', k === which);
-        panels[k].hidden = k !== which;
-      });
-      document.getElementById('auth-title').textContent = which === 'signup' ? 'Create your workspace' : 'Welcome back';
-      document.getElementById('auth-sub').textContent = which === 'signup' ? 'Start a 14-day free trial. No credit card required.' : 'Log in to your Campaign Span workspace.';
-      msg.hidden = true;
-    }
-    tabs.login.addEventListener('click', function () { show('login'); history.replaceState(null, '', '#login'); });
-    tabs.signup.addEventListener('click', function () { show('signup'); history.replaceState(null, '', '#signup'); });
-    function route() { show(location.hash === '#signup' ? 'signup' : 'login'); }
-    window.addEventListener('hashchange', route);
-    route();
+    var form = document.getElementById('waitlist');
+    var msg = document.getElementById('wl-msg');
+    var btn = form.querySelector('button[type="submit"]');
+    function say(html) { msg.hidden = false; msg.innerHTML = html; }
 
-    // Accounts aren't live yet: validate, then point people to the demo.
-    function prelaunch() {
-      msg.hidden = false;
-      msg.innerHTML = 'Accounts open at launch. Until then, <a href="demo.html">explore the demo workspace</a>.';
-    }
-    Object.keys(panels).forEach(function (k) {
-      panels[k].addEventListener('submit', function (e) {
-        e.preventDefault();
-        if (!panels[k].checkValidity()) { panels[k].reportValidity(); return; }
-        prelaunch();
-      });
-    });
-    document.querySelectorAll('[data-placeholder]').forEach(function (b) {
-      b.addEventListener('click', function (e) { e.preventDefault(); prelaunch(); });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!form.checkValidity()) { form.reportValidity(); return; }
+      var data = {};
+      new FormData(form).forEach(function (v, k) { data[k] = v; });
+      btn.disabled = true; btn.textContent = 'Joining…'; msg.hidden = true;
+      fetch('/api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.error || 'Something went wrong.'); }); })
+        .then(function () {
+          form.hidden = true;
+          say('<strong>You\u2019re on the list.</strong> We\u2019ll email you when accounts open. In the meantime, <a href="demo.html">explore the demo workspace</a>.');
+        }, function (err) {
+          btn.disabled = false; btn.textContent = 'Join the waitlist';
+          var t = document.createElement('span'); t.textContent = err.message + ' ';
+          say(''); msg.appendChild(t);
+          var a = document.createElement('a'); a.href = 'mailto:hello@campaignspan.com'; a.textContent = 'Or email us.'; msg.appendChild(a);
+        });
     });
   })();
 </script>

@@ -83,7 +83,7 @@ GitHub Actions runs both on every push to `main` and on pull requests (`.github/
 
 ## Before launch
 
-- **Pricing** (`pricing.html`): Starter $19 / Team $39 / Business $65 per user per month, or $15 / $31 / $52 billed annually. Set in October 2026 to undercut buying separate tools (CoSchedule, Loomly, Planable, Sprout Social, StudioBinder) while staying above calendar-only products. Recheck against competitors before launch.
+- **Pricing** (`pricing.html`): Starter $10 / Team $12 / Business $21 per user per month, or $8 / $10 / $17 billed annually. Set in October 2026 to come in under monday.com's matching tiers (Basic $12 / Standard $14 / Pro $24 monthly, $9 / $12 / $19 annually). Recheck against monday.com before launch.
 - **Accounts**: `login.html` is a waitlist until the app exists. Replace it with real log in / sign up, and switch the "Join the waitlist" buttons in `assets/site.js`, `pricing.html` and `demo.html` back.
 - **Product images**: the home page "screenshots" are HTML mockups captioned "Product preview". Swap them for real captures.
 - **Mobile**: four features are marked "Planned" for iOS and Android in `features.html`. Update once decided.

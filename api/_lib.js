@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS admin_settings (
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+CREATE TABLE IF NOT EXISTS waitlist_attempts (
+  ip_hash TEXT NOT NULL,
+  at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS waitlist_attempts_idx ON waitlist_attempts (ip_hash, at);
 CREATE TABLE IF NOT EXISTS waitlist (
   email TEXT PRIMARY KEY CHECK (length(email) <= 254),
   name TEXT NOT NULL DEFAULT '' CHECK (length(name) <= 80),

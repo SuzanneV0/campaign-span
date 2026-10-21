@@ -43,3 +43,40 @@ test('links round-trip, including non-ASCII text, and are URL-safe', () => {
   assert.equal(E.fromUrl('https://x.test/demo.html?a=1&env=' + code + '#top'), code);
   assert.equal(E.fromUrl('https://x.test/demo.html'), null);
 });
+
+test('the standard demo has three brands on the Business plan', () => {
+  const d = E.normalize(null);
+  assert.equal(d.plan, 'business');
+  assert.deepEqual(plain(d.brands.map((b) => b.name)), ['Northwind Café', 'Northwind Foundation']);
+});
+
+test('links made before brands existed stay single-brand', () => {
+  const old = E.normalize({ company: 'Maple & Pine', industry: 'saas' });
+  assert.deepEqual(plain(old.brands), []);
+  assert.equal(old.plan, 'business');
+});
+
+test('brands are cleaned up and capped by the plan', () => {
+  const brands = [
+    { name: '  Second  ', industry: 'food', color: '#112233', channels: ['tiktok', 'myspace'] },
+    { name: 'Third', industry: 'mining', color: 'teal', channels: [] },
+    { name: '' },
+    'junk',
+  ];
+  const team = E.normalize({ plan: 'team', industry: 'saas', color: '#00aaff', channels: ['x', 'email'], brands });
+  assert.deepEqual(plain(team.brands), [{ name: 'Second', industry: 'food', color: '#112233', channels: ['tiktok'] }], 'Team includes 2 brands, so only one extra');
+
+  const biz = E.normalize({ plan: 'business', industry: 'saas', color: '#00aaff', channels: ['x', 'email'], brands });
+  assert.deepEqual(plain(biz.brands[1]), { name: 'Third', industry: 'saas', color: '#00aaff', channels: ['x', 'email'] }, 'bad values fall back to the company’s');
+
+  assert.deepEqual(plain(E.normalize({ plan: 'starter', brands }).brands), []);
+  assert.equal(E.normalize({ plan: 'free' }).plan, 'business');
+  const many = Array.from({ length: 20 }, (_, i) => ({ name: 'Brand ' + i }));
+  assert.equal(E.normalize({ plan: 'enterprise', brands: many }).brands.length, 9, 'demo links hold at most 10 brands');
+});
+
+test('brands survive the link round trip', () => {
+  const cfg = E.normalize({ company: 'Acme', plan: 'enterprise', brands: [{ name: 'Acmé Kids', industry: 'apparel', color: '#abcdef', channels: ['instagram'] }] });
+  assert.deepEqual(plain(E.normalize(E.decode(E.encode(cfg)))), plain(cfg));
+  assert.equal(cfg.brands[0].name, 'Acmé Kids');
+});

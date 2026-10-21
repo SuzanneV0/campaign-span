@@ -31,6 +31,9 @@ The header and footer for every page come from `assets/site.js`. The dark/light 
 
 `demo.html` + `assets/demo.js` is a fully in-browser sample workspace. Nothing is sent to a server, and everything resets on reload.
 
+- **Brands**: the standard demo is a Business-plan workspace with three brands (Northwind Apparel, Northwind Café, Northwind Foundation). Each has its own calendar, board, production project, files, connected accounts and analytics. **All brands** shows a card per brand, a comparison table with CSV export, and Add brand (capped by the plan).
+- **Brand access**: in Team, each person gets a role per brand: brand lead, editor, viewer or no access. Pick a person under **Viewing as** to see only their brands. Viewers get a read-only version of the brand.
+
 - **Calendar**: month view, drag entries between days, gap highlighting, channel filter
 - **Board**: kanban columns shared with the calendar status, drag between columns
 - **Analytics**: KPIs, engagement by channel, weekly reach, channel mix, recommendations and gaps
@@ -44,7 +47,7 @@ The header and footer for every page come from `assets/site.js`. The dark/light 
 
 `admin.html` + `assets/admin.js` is an internal tool for sales and customer success:
 
-- **Demo environments**: build a tailored demo (company, industry, brand colour, channels, the client's own team, notification defaults, banner, sample-data level) and share it as a link. The whole configuration travels inside the link (`demo.html?env=…`, defined in `assets/env.js`), so it works on any device with no server.
+- **Demo environments**: build a tailored demo (company, industry, brand colour, channels, plan and extra brands, the client's own team, notification defaults, banner, sample-data level) and share it as a link. Links made before brands existed open as single-brand workspaces. The whole configuration travels inside the link (`demo.html?env=…`, defined in `assets/env.js`), so it works on any device with no server.
 - **Client onboarding**: empty workspaces with a 9-step onboarding checklist and progress tracking.
 - **Troubleshooting**: live health checks (pages, scripts, CDNs, browser support), a demo-link inspector, and browser details to collect from clients.
 - **Waitlist**: everyone who joined the early-access waitlist, with search, CSV export and removal (for privacy requests).
@@ -80,6 +83,10 @@ npm test        # demo-link encoding, broken links and assets on every page, scr
 ```
 
 GitHub Actions runs both on every push to `main` and on pull requests (`.github/workflows/ci.yml`).
+
+## Docs
+
+- [`docs/multi-brand-spec.md`](docs/multi-brand-spec.md): how multi-brand workspaces should work in the production app (permissions, plan limits, data model, API, migration, open questions).
 
 ## Before launch
 

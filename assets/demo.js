@@ -38,16 +38,16 @@
     try { return CSEnv.normalize(CSEnv.decode(raw)); }
     catch (e) { ENV_ERROR = 'This demo link is damaged, so the standard demo loaded instead.'; return CSEnv.normalize(null); }
   })();
-  var IND = CSEnv.INDUSTRIES[ENV.industry];
+  var IND; // the active brand's industry preset (see useBrand)
 
   function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h; }
-  var rand = rng(hash(ENV.company + ENV.industry) || 20261002);
+  var rand; // reseeded per brand so each brand's sample data is stable
   function pick(arr) { return arr[Math.floor(rand() * arr.length)]; }
 
   // ---------- reference data ----------
   var CHANNELS = CSEnv.CHANNELS;
-  var ENABLED = ENV.channels;
-  var SOCIAL = ENABLED.filter(function (c) { return c !== 'email'; });
+  // The active brand's connected channels, and the rest of its data, are swapped in by useBrand()
+  var ENABLED, SOCIAL, WEIGHTS, MONEY_CHANNELS;
   var DEPTS = CSEnv.DEPTS;
   var STATUSES = [['idea', 'Ideas'], ['brief', 'Briefing'], ['production', 'In production'], ['review', 'Review'], ['scheduled', 'Scheduled'], ['published', 'Published']];
   var STATUS_LABEL = {}; STATUSES.forEach(function (s) { STATUS_LABEL[s[0]] = s[1]; });
@@ -58,11 +58,13 @@
   function initials(p) { return p.name.split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
   function avatar(p) { return '<span class="avatar" style="--av:' + p.color + '" title="' + esc(p.name) + '">' + esc(initials(p)) + '</span>'; }
 
-  // Role letters used by seed data → the first matching person in this environment
-  function inDept(d, nth) { var list = people.filter(function (p) { return p.dept === d; }); return list[nth || 0] || list[0]; }
+  // People with access to a brand (the active one by default)
+  function members(b) { b = b || B; return people.filter(function (p) { return b.access[p.id]; }); }
+  // Role letters used by seed data → the first matching person on the active brand
+  function inDept(d, nth) { var list = members().filter(function (p) { return p.dept === d; }); return list[nth || 0] || list[0]; }
   function role(r) {
     var p = { S: inDept('Social'), M: inDept('Marketing'), P: inDept('Production'), P2: inDept('Production', 1), B: inDept('Brand services'), X: inDept('Sales') }[r];
-    return (p || people[0]).id;
+    return (p || members()[0] || people[0]).id;
   }
 
   // ---------- seed posts ----------
@@ -71,8 +73,7 @@
     instagram: [9000, .058], tiktok: [14000, .084], youtube: [6000, .047], x: [3000, .021], facebook: [4000, .026],
     threads: [2200, .041], bluesky: [1200, .045], linkedin: [2800, .032], pinterest: [3500, .019], email: [12000, .41]
   };
-  var WEIGHTS = [['instagram', 8], ['tiktok', 3], ['youtube', 1], ['x', 3], ['facebook', 3], ['threads', 2], ['bluesky', 1], ['linkedin', 2], ['pinterest', 2], ['email', 3]]
-    .filter(function (w) { return ENABLED.indexOf(w[0]) !== -1; });
+  var ALL_WEIGHTS = [['instagram', 8], ['tiktok', 3], ['youtube', 1], ['x', 3], ['facebook', 3], ['threads', 2], ['bluesky', 1], ['linkedin', 2], ['pinterest', 2], ['email', 3]];
   var OWNER = {
     instagram: ['S', 'd:Social'], tiktok: ['S', 'd:Social'], youtube: ['P', 'd:Production'], x: ['S'], facebook: ['S'],
     threads: ['S'], bluesky: ['B'], linkedin: ['X', 'd:Sales'], pinterest: ['B', 'd:Brand services'], email: ['M', 'd:Marketing']
@@ -86,9 +87,11 @@
   }
 
   var nextId = 1;
-  var posts = [];
-  if (ENV.data !== 'empty') {
-    var light = ENV.data === 'light';
+  var posts; // the active brand's calendar
+  function seedPosts(data) {
+    var posts = [];
+    if (data === 'empty') return posts;
+    var light = data === 'light';
     for (var off = light ? -35 : -70; off <= -1; off++) {
       var day = addDays(TODAY, off), dow = parse(day).getDay();
       var n = (dow === 0 || dow === 6) ? (rand() < .4 ? 1 : 0) : (rand() < .55 ? 1 : 2);
@@ -128,6 +131,7 @@
       var c = ENABLED.indexOf(f[2]) !== -1 ? f[2] : (SOCIAL[i % Math.max(1, SOCIAL.length)] || ENABLED[0]);
       posts.push({ id: nextId++, date: addDays(TODAY, f[0]), time: f[1], channel: c, title: IND.future[i], status: f[3], tags: tagsFor(f[4]), notes: '' });
     });
+    return posts;
   }
 
   // ---------- monetization ----------
@@ -140,17 +144,18 @@
     x: { rpm: .25, share: .6, mix: { ads: .70, subs: .30, tips: 0, bonus: 0 }, programs: 'Creator ad revenue sharing, subscriptions' }
   };
   var REV_SOURCES = [['ads', 'Ad revenue'], ['subs', 'Subscriptions & memberships'], ['tips', 'Tips & gifts'], ['bonus', 'Bonuses & creator programs']];
-  var MONEY_CHANNELS = ENABLED.filter(function (c) { return MONETIZATION[c]; });
-  var revRand = rng(hash(ENV.company + ':revenue') || 7);
-  posts.forEach(function (p) {
-    var m = MONETIZATION[p.channel];
-    if (!m || p.status !== 'published' || !p.reach) return;
-    p.monetized = revRand() < m.share;
-    if (!p.monetized) return;
-    var total = p.reach / 1000 * m.rpm * (0.6 + revRand() * 0.8);
-    p.revenue = {};
-    REV_SOURCES.forEach(function (src) { p.revenue[src[0]] = Math.round(total * m.mix[src[0]] * 100) / 100; });
-  });
+  function seedRevenue(posts) {
+    var revRand = rng(hash(B.name + ':revenue') || 7);
+    posts.forEach(function (p) {
+      var m = MONETIZATION[p.channel];
+      if (!m || p.status !== 'published' || !p.reach) return;
+      p.monetized = revRand() < m.share;
+      if (!p.monetized) return;
+      var total = p.reach / 1000 * m.rpm * (0.6 + revRand() * 0.8);
+      p.revenue = {};
+      REV_SOURCES.forEach(function (src) { p.revenue[src[0]] = Math.round(total * m.mix[src[0]] * 100) / 100; });
+    });
+  }
   function revTotal(p) { return p.revenue ? REV_SOURCES.reduce(function (t, src) { return t + p.revenue[src[0]]; }, 0) : 0; }
   function money(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   // Per-channel totals for published posts in [from, to)
@@ -175,6 +180,8 @@
   // ---------- state ----------
   var state = {
     view: 'calendar',
+    brand: 'b0',
+    viewer: null, // a person id when "Viewing as" a specific person; null for the workspace admin
     role: 'all',
     calMonth: TODAY.slice(0, 8) + '01',
     calChannel: 'all',
@@ -190,68 +197,72 @@
     state.deptSettings[d] = { app: s.indexOf('a') !== -1, email: s.indexOf('e') !== -1, slack: s.indexOf('s') !== -1 };
   });
 
-  var seeded = ENV.data !== 'empty';
-  var P = IND.project;
+  // ---------- production ----------
+  var project, files; // the active brand's production project and files
   function crewName(r) { var p = person(role(r)); return p ? p.name : 'TBD'; }
-  var project = {
-    name: P.name,
-    shootDate: addDays(TODAY, 4),
-    brief: P.brief,
-    goals: P.goals.slice(),
-    audience: P.audience,
-    deliverables: seeded ? [IND.future[3], IND.future[4], IND.future[2], IND.future[6]] : [],
-    logistics: [
-      ['Location', P.location],
-      ['Call / wrap', niceTime(P.schedule[0][0]) + ' – ' + niceTime(P.schedule[P.schedule.length - 1][0])],
-      ['Crew', crewName('P') + ' (DP), ' + crewName('P2') + ' (camera), 1 gaffer, 1 stylist'],
-      ['Talent', P.talent],
-      ['Budget', P.budget]
-    ],
-    schedule: seeded ? P.schedule.map(function (r) { return { time: r[0], item: r[1], owner: r[2] ? role(r[2]) : '' }; }) : [],
-    equipment: seeded ? CSEnv.clone(CSEnv.KIT) : []
-  };
-
-  // ---------- call sheet ----------
   function toMin(t) { return (+t.slice(0, 2)) * 60 + (+t.slice(3, 5)); }
   function fromMin(n) { n = Math.max(0, Math.min(23 * 60 + 59, n)); return pad(Math.floor(n / 60)) + ':' + pad(n % 60); }
   var CREW_TITLE = { P: 'Director of photography', P2: 'Camera operator', B: 'Wardrobe and brand lead', S: 'Social and BTS', M: 'Producer', X: 'Client liaison' };
   var csId = 1;
-  // Everyone working the shoot day: in-house team (from the schedule) plus outside crew and talent
-  project.callSheet = !seeded ? [] : (function () {
-    var start = toMin(P.schedule[0][0]), end = toMin(P.schedule[P.schedule.length - 1][0]);
-    var out = [], seen = {};
-    function addInternal(r, call, wrap) {
-      var id = role(r); if (seen[id]) return; seen[id] = 1;
-      out.push({ id: csId++, personId: id, name: person(id).name, role: CREW_TITLE[r], type: 'Crew', call: fromMin(call), wrap: fromMin(wrap), status: 'Confirmed' });
-    }
-    addInternal('M', start - 30, end + 30); // producer opens and closes the day
-    P.schedule.forEach(function (r) {
-      if (!r[2]) return;
-      addInternal(r[2], r[2] === 'P' ? start : toMin(r[0]) - 30, r[2] === 'P' ? end + 30 : end);
-    });
-    (P.callSheet || []).forEach(function (c) {
-      out.push({ id: csId++, personId: '', name: c[0], role: c[1], type: c[2], call: c[3], wrap: c[4], status: c[5] || 'Confirmed' });
-    });
-    return out;
-  })();
   function hoursBetween(call, wrap) { return Math.round((toMin(wrap) - toMin(call)) / 60 * 100) / 100; } // 10.25, 7.5, 9
   function personActivities(id) {
     return project.schedule.filter(function (r) { return id && r.owner === id; }).sort(function (a, b) { return a.time.localeCompare(b.time); });
   }
+  // Sample production project, call sheet and files for the active brand
+  function seedProduction(seeded) {
+    var P = IND.project;
+    var project = {
+      name: P.name,
+      shootDate: addDays(TODAY, 4),
+      brief: P.brief,
+      goals: P.goals.slice(),
+      audience: P.audience,
+      deliverables: seeded ? [IND.future[3], IND.future[4], IND.future[2], IND.future[6]] : [],
+      logistics: [
+        ['Location', P.location],
+        ['Call / wrap', niceTime(P.schedule[0][0]) + ' – ' + niceTime(P.schedule[P.schedule.length - 1][0])],
+        ['Crew', crewName('P') + ' (DP), ' + crewName('P2') + ' (camera), 1 gaffer, 1 stylist'],
+        ['Talent', P.talent],
+        ['Budget', P.budget]
+      ],
+      schedule: seeded ? P.schedule.map(function (r) { return { time: r[0], item: r[1], owner: r[2] ? role(r[2]) : '' }; }) : [],
+      equipment: seeded ? CSEnv.clone(CSEnv.KIT) : []
+    };
 
-  var firstWord = ENV.company.split(/\s+/)[0];
-  var files = !seeded ? [] : [
-    { name: P.name + ' – Creative brief.pdf', folder: 'Briefs', size: 1.2e6, owner: role('M'), updated: addDays(TODAY, -6) },
-    { name: 'Shot list v3.xlsx', folder: 'Briefs', size: 84e3, owner: role('P'), updated: addDays(TODAY, -2) },
-    { name: 'Call sheet.pdf', folder: 'Briefs', size: 310e3, owner: role('P'), updated: addDays(TODAY, -1) },
-    { name: 'Moodboard.png', folder: 'Brand assets', size: 6.4e6, owner: role('B'), updated: addDays(TODAY, -9) },
-    { name: firstWord + ' logo pack.zip', folder: 'Brand assets', size: 18.2e6, owner: role('B'), updated: addDays(TODAY, -40) },
-    { name: 'Brand guidelines 2026.pdf', folder: 'Brand assets', size: 9.8e6, owner: role('B'), updated: addDays(TODAY, -60) },
-    { name: 'Last launch selects.zip', folder: 'Finals', size: 412e6, owner: role('P2'), updated: addDays(TODAY, -120) },
-    { name: 'Newsletter #40 – final.html', folder: 'Finals', size: 46e3, owner: role('M'), updated: addDays(TODAY, -7) },
-    { name: 'Teaser_v2_vertical.mp4', folder: 'Raw footage', size: 286e6, owner: role('P'), updated: addDays(TODAY, -3) },
-    { name: 'Release forms.pdf', folder: 'Contracts', size: 2.1e6, owner: role('M'), updated: addDays(TODAY, -5) }
-  ];
+    // Everyone working the shoot day: in-house team (from the schedule) plus outside crew and talent
+    project.callSheet = !seeded ? [] : (function () {
+      var start = toMin(P.schedule[0][0]), end = toMin(P.schedule[P.schedule.length - 1][0]);
+      var out = [], seen = {};
+      function addInternal(r, call, wrap) {
+        var id = role(r); if (seen[id]) return; seen[id] = 1;
+        out.push({ id: csId++, personId: id, name: person(id).name, role: CREW_TITLE[r], type: 'Crew', call: fromMin(call), wrap: fromMin(wrap), status: 'Confirmed' });
+      }
+      addInternal('M', start - 30, end + 30); // producer opens and closes the day
+      P.schedule.forEach(function (r) {
+        if (!r[2]) return;
+        addInternal(r[2], r[2] === 'P' ? start : toMin(r[0]) - 30, r[2] === 'P' ? end + 30 : end);
+      });
+      (P.callSheet || []).forEach(function (c) {
+        out.push({ id: csId++, personId: '', name: c[0], role: c[1], type: c[2], call: c[3], wrap: c[4], status: c[5] || 'Confirmed' });
+      });
+      return out;
+    })();
+
+    var firstWord = B.name.split(/\s+/)[0];
+    var files = !seeded ? [] : [
+      { name: P.name + ' – Creative brief.pdf', folder: 'Briefs', size: 1.2e6, owner: role('M'), updated: addDays(TODAY, -6) },
+      { name: 'Shot list v3.xlsx', folder: 'Briefs', size: 84e3, owner: role('P'), updated: addDays(TODAY, -2) },
+      { name: 'Call sheet.pdf', folder: 'Briefs', size: 310e3, owner: role('P'), updated: addDays(TODAY, -1) },
+      { name: 'Moodboard.png', folder: 'Brand assets', size: 6.4e6, owner: role('B'), updated: addDays(TODAY, -9) },
+      { name: firstWord + ' logo pack.zip', folder: 'Brand assets', size: 18.2e6, owner: role('B'), updated: addDays(TODAY, -40) },
+      { name: 'Brand guidelines 2026.pdf', folder: 'Brand assets', size: 9.8e6, owner: role('B'), updated: addDays(TODAY, -60) },
+      { name: 'Last launch selects.zip', folder: 'Finals', size: 412e6, owner: role('P2'), updated: addDays(TODAY, -120) },
+      { name: 'Newsletter #40 – final.html', folder: 'Finals', size: 46e3, owner: role('M'), updated: addDays(TODAY, -7) },
+      { name: 'Teaser_v2_vertical.mp4', folder: 'Raw footage', size: 286e6, owner: role('P'), updated: addDays(TODAY, -3) },
+      { name: 'Release forms.pdf', folder: 'Contracts', size: 2.1e6, owner: role('M'), updated: addDays(TODAY, -5) }
+    ];
+    return { project: project, files: files };
+  }
   var FOLDERS = ['All', 'Briefs', 'Brand assets', 'Raw footage', 'Finals', 'Contracts'];
   function fmtSize(b) { return b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB'; }
 
@@ -272,20 +283,23 @@
     if (on.app) out.push('App'); if (on.email) out.push('Email'); if (on.slack) out.push('Slack');
     return out.join(' · ') || 'No channels enabled';
   }
-  function notify(title, detail, tags, silent) {
+  function notify(title, detail, tags, silent, brandId) {
     var depts = tagDepts(tags);
-    var n = { id: Date.now() + Math.random(), at: new Date(), title: title, detail: detail, who: tags.map(tagLabel).join(', '), depts: depts, via: viaFor(depts), unread: true };
+    var n = { id: Date.now() + Math.random(), at: new Date(), brand: brandId || B.id, title: title, detail: detail, who: tags.map(tagLabel).join(', '), depts: depts, via: viaFor(depts), unread: true };
     state.notifications.unshift(n);
     renderBell();
     if (!silent) toast(title, 'Notified ' + n.who + ' via ' + n.via);
   }
   function visibleNotifs() {
-    return state.notifications.filter(function (n) { return state.role === 'all' || n.depts.indexOf(state.role) !== -1; });
+    return state.notifications.filter(function (n) {
+      var b = brandById(n.brand);
+      if (state.viewer && !(b && b.access[state.viewer])) return false;
+      return state.role === 'all' || n.depts.indexOf(state.role) !== -1;
+    });
   }
 
-  // seed a few notifications
-  (function () {
-    if (!seeded) return;
+  // A few starting notifications for the active brand
+  function seedNotifs() {
     var seed = [
       ['New project: ' + project.name, 'Created by ' + person(role('M')).name, [role('M'), 'd:Production', 'd:Social']],
       ['You were assigned: ' + IND.future[4], 'Due ' + nice(addDays(TODAY, 7)), [role('S')]],
@@ -294,9 +308,94 @@
     ];
     seed.forEach(function (s, i) {
       notify(s[0], s[1], s[2], true);
-      state.notifications[0].at = new Date(Date.now() - (seed.length - i) * 3.6e6 * 5);
+      state.notifications[0].at = new Date(Date.now() - (seed.length - i) * 3.6e6 * 5 - brands.length * 2.4e6);
     });
-  })();
+  }
+
+
+  // ---------- brands ----------
+  // One workspace, several brands. Each brand has its own calendar, production project, files, connected
+  // accounts and analytics. People belong to the workspace and get a role on each brand they can access.
+  var PLAN = CSEnv.PLANS[ENV.plan];
+  var ROLE_LABEL = CSEnv.BRAND_ROLES;
+  var brands = [], B = null;
+  function brandById(id) { return brands.find(function (b) { return b.id === id; }); }
+
+  // Swap the active brand's data into the variables the views read
+  function useBrand(b) {
+    B = b;
+    IND = CSEnv.INDUSTRIES[b.industry];
+    ENABLED = b.channels;
+    SOCIAL = ENABLED.filter(function (c) { return c !== 'email'; });
+    WEIGHTS = ALL_WEIGHTS.filter(function (w) { return ENABLED.indexOf(w[0]) !== -1; });
+    MONEY_CHANNELS = ENABLED.filter(function (c) { return MONETIZATION[c]; });
+    posts = b.posts; project = b.project; files = b.files;
+  }
+  // Run fn with another brand active, then switch back
+  function withBrand(b, fn) { var prev = B; useBrand(b); try { return fn(); } finally { if (prev) useBrand(prev); } }
+
+  // Sample access: everyone is on the first brand; each extra brand gets part of the team, with one brand lead
+  function sampleAccess(i) {
+    var access = {}, list = i === 0 ? people : people.filter(function (p, k) { return (k + i) % 3 !== 0; });
+    if (!list.length) list = people.slice(0, 1);
+    list.forEach(function (p) { access[p.id] = 'editor'; });
+    var lead = list.find(function (p) { return p.dept === 'Marketing'; }) || list[0];
+    access[lead.id] = 'lead';
+    if (i > 0 && list.length >= 3) access[list[list.length - 1].id] = 'viewer';
+    return access;
+  }
+  function addBrand(def, data, access) {
+    var b = { id: 'b' + brands.length, name: def.name, industry: def.industry, color: def.color, channels: def.channels.slice(), access: access, posts: [], project: null, files: [] };
+    brands.push(b);
+    withBrand(b, function () {
+      rand = rng(hash(b.name + b.industry) || 20261002);
+      b.posts = posts = seedPosts(data);
+      seedRevenue(posts);
+      var pr = seedProduction(data !== 'empty');
+      b.project = project = pr.project; b.files = files = pr.files;
+      if (data !== 'empty') seedNotifs();
+    });
+    return b;
+  }
+
+  // What the current viewer can do. The workspace admin ("all") manages every brand.
+  function roleOn(b) { return state.viewer ? b.access[state.viewer] || null : 'admin'; }
+  function myBrands() { return brands.filter(roleOn); }
+  function canEdit(b) { var r = roleOn(b || B); return r === 'admin' || r === 'lead' || r === 'editor'; }
+  function canManage(b) { var r = roleOn(b || B); return r === 'admin' || r === 'lead'; }
+  function isAdmin() { return !state.viewer; }
+  function brandLimitText() { return PLAN.brands === Infinity ? 'Unlimited brands on ' + PLAN.label : brands.length + ' of ' + PLAN.brands + ' brands on ' + PLAN.label; }
+
+  function switchBrand(id, quiet) {
+    var b = brandById(id);
+    if (!b || !roleOn(b)) return;
+    state.brand = b.id;
+    useBrand(b);
+    if (state.calChannel !== 'all' && ENABLED.indexOf(state.calChannel) === -1) state.calChannel = 'all';
+    state.fileFolder = 'All'; state.fileQuery = '';
+    renderBrandPicker();
+    if (!quiet) render();
+  }
+  // Keep the active brand one the viewer can open
+  function ensureBrand() {
+    var mine = myBrands();
+    if (mine.length && !roleOn(B)) switchBrand(mine[0].id, true);
+    renderBrandPicker();
+  }
+  function renderBrandPicker() {
+    var mine = myBrands(), sel = $('#brand-select');
+    sel.innerHTML = mine.length ? mine.map(function (b) { return '<option value="' + b.id + '"' + (b === B ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('') : '<option>No brands yet</option>';
+    sel.disabled = mine.length < 2;
+    var r = mine.length ? roleOn(B) : null;
+    $('.ws-name small').textContent = (ENV.purpose === 'onboarding' ? 'Onboarding workspace' : 'Demo workspace') + (brands.length > 1 ? ' \u00b7 ' + brands.length + ' brands' : '');
+    $('#brand-note').textContent = !mine.length ? 'Not assigned to any brand yet.' : r === 'admin' ? brandLimitText() + '.' : 'Your role here: ' + ROLE_LABEL[r] + '.';
+  }
+
+  // The company is the first brand; the demo settings can add more
+  [{ name: ENV.company, industry: ENV.industry, color: ENV.color, channels: ENV.channels }].concat(ENV.brands).forEach(function (def, i) {
+    addBrand(def, ENV.data, sampleAccess(i));
+  });
+  useBrand(brands[0]);
 
   // ---------- toast & tooltip ----------
   function toast(msg, sub) {
@@ -350,14 +449,140 @@
 
   // ---------- views ----------
   var view = $('#view');
-  var TITLES_BY_VIEW = { calendar: 'Calendar', board: 'Board', analytics: 'Analytics', production: 'Production', files: 'Files', team: 'Team' };
+  var TITLES_BY_VIEW = { brands: 'All brands', calendar: 'Calendar', board: 'Board', analytics: 'Analytics', production: 'Production', files: 'Files', team: 'Team' };
 
   function render() {
+    // Brands and Team cover the whole workspace; every other view shows the active brand
+    var brandView = state.view !== 'brands' && state.view !== 'team';
+    var hasBrand = myBrands().length > 0;
     $('#view-title').textContent = TITLES_BY_VIEW[state.view];
+    var vb = $('#view-brand');
+    vb.hidden = !brandView || !hasBrand;
+    vb.innerHTML = '<i style="--bc:' + esc(B.color) + '"></i>' + esc(B.name);
+    $('#new-entry').hidden = !brandView || !hasBrand || !canEdit();
+    $('.menu-wrap').hidden = !brandView || !hasBrand;
     $$('.app-nav a').forEach(function (a) {
       if (a.dataset.view === state.view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
-    ({ calendar: renderCalendar, board: renderBoard, analytics: renderAnalytics, production: renderProduction, files: renderFiles, team: renderTeam })[state.view]();
+    if (brandView && !hasBrand) {
+      view.innerHTML = '<div class="panel"><p class="empty">' + esc(person(state.viewer).name) + ' isn\u2019t assigned to any brand yet.<br>A workspace admin can add them in Team \u2192 Brand access.</p></div>';
+      return;
+    }
+    ({ brands: renderBrands, calendar: renderCalendar, board: renderBoard, analytics: renderAnalytics, production: renderProduction, files: renderFiles, team: renderTeam })[state.view]();
+    if (brandView && !canEdit()) lockView();
+  }
+
+  // Viewers can look, filter and export, but not change anything
+  function lockView() {
+    $$('#view form, #view .add-btn, #view [data-add], #view .upload-label, #view [data-cs-remove], #view [data-cs-addperson], #view [data-reco]').forEach(function (el) { el.hidden = true; });
+    $$('#view input, #view select, #view textarea').forEach(function (el) { if (!el.hasAttribute('data-ro-ok')) el.disabled = true; });
+    $$('#view [draggable]').forEach(function (el) { el.setAttribute('draggable', 'false'); });
+    view.insertAdjacentHTML('afterbegin', '<div class="notice ro-note">You have <strong>view-only</strong> access to ' + esc(B.name) + '. Ask a brand lead or workspace admin if you need to make changes.</div>');
+  }
+
+  // All brands: one place to see and manage every brand you can access
+  function brandStats(b) {
+    return withBrand(b, function () {
+      var from = addDays(TODAY, -30), cur = analyze(from, TODAY);
+      return {
+        planned: posts.filter(function (p) { return p.date >= TODAY && p.date <= addDays(TODAY, 13); }).length,
+        gaps: gapRuns(14).length,
+        notReady: posts.filter(function (p) { return p.date >= TODAY && p.date <= addDays(TODAY, 3) && p.status !== 'scheduled' && p.status !== 'published'; }).length,
+        posts: cur.posts, reach: cur.reach, er: cur.er,
+        revenue: MONEY_CHANNELS.length ? monetization(from, TODAY).total.revenue : null
+      };
+    });
+  }
+  function renderBrands() {
+    var mine = myBrands(), stats = {};
+    mine.forEach(function (b) { stats[b.id] = brandStats(b); });
+    var h = '<p class="muted" style="margin:0 0 14px;font-size:.92rem">' + (isAdmin()
+      ? 'Every brand in the ' + esc(ENV.company) + ' workspace. Each has its own calendar, production, connected accounts and reporting. ' + esc(brandLimitText()) + '.'
+      : 'The brands ' + esc(person(state.viewer).name) + ' can access, and their role on each.') + '</p>';
+    if (!mine.length) h += '<div class="panel"><p class="empty">Not assigned to any brand yet.</p></div>';
+    h += '<div class="brand-grid">' + mine.map(function (b) {
+      var st = stats[b.id], r = roleOn(b), team = members(b);
+      var flags = (st.gaps ? '<span class="tag warn">' + st.gaps + ' gap' + (st.gaps > 1 ? 's' : '') + ' in the next 2 weeks</span>' : '<span class="tag ok">No gaps in the next 2 weeks</span>') +
+        (st.notReady ? ' <span class="tag warn">' + st.notReady + ' not ready to publish</span>' : '');
+      var editing = state.editAccounts === b.id;
+      return '<div class="panel brand-card" style="--bc:' + esc(b.color) + '">' +
+        '<div class="bc-head"><span class="ws-dot" style="background:' + esc(b.color) + ';width:28px;height:28px;border-radius:8px"></span><div><h3>' + esc(b.name) + '</h3><small>' + esc(CSEnv.INDUSTRIES[b.industry].label) + '</small></div>' +
+        '<span class="tag ' + (r === 'viewer' ? 'neutral' : '') + '">' + (r === 'admin' ? 'Admin' : ROLE_LABEL[r]) + '</span></div>' +
+        '<div class="bc-stats"><div><small>Planned, 14 days</small><strong>' + st.planned + '</strong></div><div><small>Reach, 30 days</small><strong>' + fmtNum(st.reach) + '</strong></div><div><small>Engagement</small><strong>' + pct(st.er) + '</strong></div></div>' +
+        '<div>' + flags + '</div>' +
+        '<div class="bc-accounts"><small>Connected accounts</small>' + (editing
+          ? '<div class="bc-edit">' + Object.keys(CHANNELS).map(function (c) { return '<label><input type="checkbox" data-acc="' + b.id + ':' + c + '"' + (b.channels.indexOf(c) !== -1 ? ' checked' : '') + '>' + CHANNELS[c] + '</label>'; }).join('') + '</div>'
+          : b.channels.map(function (c) { return '<span class="chip c-' + c + '">' + CHANNELS[c] + '</span>'; }).join('')) +
+        (canManage(b) ? '<button class="btn btn-ghost btn-sm" type="button" data-acc-edit="' + b.id + '">' + (editing ? 'Done' : 'Manage') + '</button>' : '') + '</div>' +
+        '<div class="bc-foot"><span class="avatars">' + team.slice(0, 6).map(avatar).join('') + (team.length > 6 ? '<span class="muted" style="font-size:.8rem;margin-left:6px">+' + (team.length - 6) + '</span>' : '') + '</span>' +
+        '<button class="btn btn-ghost btn-sm" type="button" data-go="' + b.id + ':analytics">Analytics</button>' +
+        '<button class="btn btn-primary btn-sm" type="button" data-go="' + b.id + ':calendar">Open calendar</button></div></div>';
+    }).join('') + '</div>';
+
+    if (mine.length > 1) {
+      h += '<div class="panel" style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h3>Compare brands</h3><p class="sub" style="margin-bottom:0">Last 30 days of results and the next 2 weeks of each calendar.</p></div>' +
+        '<button class="btn btn-ghost btn-sm" type="button" id="brands-export">Download comparison (.csv)</button></div>' +
+        '<div class="table-wrap" style="margin-top:12px"><table class="data-table"><thead><tr><th>Brand</th><th class="num">Planned, 14 days</th><th class="num">Gaps</th><th class="num">Posts, 30 days</th><th class="num">Social reach</th><th class="num">Engagement rate</th><th class="num">Est. revenue</th></tr></thead><tbody>' +
+        mine.map(function (b) {
+          var st = stats[b.id];
+          return '<tr><td><i class="brand-dot" style="--bc:' + esc(b.color) + ';margin-right:8px"></i><strong>' + esc(b.name) + '</strong></td><td class="num">' + st.planned + '</td><td class="num">' + st.gaps + '</td><td class="num">' + st.posts + '</td>' +
+            '<td class="num">' + st.reach.toLocaleString() + '</td><td class="num">' + pct(st.er) + '</td><td class="num">' + (st.revenue == null ? '\u2014' : money(st.revenue)) + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+    }
+
+    if (isAdmin()) {
+      var full = brands.length >= PLAN.brands;
+      h += '<div class="panel" style="margin-top:16px"><h3>Add a brand</h3><p class="sub">' + esc(brandLimitText()) + '. A new brand starts with an empty calendar. Assign people to it in Team.</p>' +
+        (full ? '<div class="notice">Your ' + PLAN.label + ' plan includes ' + PLAN.brands + ' brand' + (PLAN.brands === 1 ? '' : 's') + ', and ' + (PLAN.brands === 1 ? 'it\u2019s' : 'all are') + ' in use. <a href="pricing.html">Compare plans</a> to add more.</div>'
+          : '<form class="add-brand" id="brand-form"><input type="text" id="nb-name" placeholder="Brand name" maxlength="60" required aria-label="Brand name">' +
+            '<select id="nb-industry" aria-label="Industry">' + Object.keys(CSEnv.INDUSTRIES).map(function (k) { return '<option value="' + k + '">' + esc(CSEnv.INDUSTRIES[k].label) + '</option>'; }).join('') + '</select>' +
+            '<input type="color" id="nb-color" value="#B8561A" aria-label="Brand colour"><button class="btn btn-primary btn-sm" type="submit">Add brand</button></form>') + '</div>';
+    }
+    view.innerHTML = h;
+
+    $$('[data-go]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var parts = btn.dataset.go.split(':');
+        switchBrand(parts[0], true);
+        location.hash = parts[1];
+      });
+    });
+    $$('[data-acc-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () { state.editAccounts = state.editAccounts === btn.dataset.accEdit ? null : btn.dataset.accEdit; render(); });
+    });
+    $$('[data-acc]').forEach(function (box) {
+      box.addEventListener('change', function () {
+        var parts = box.dataset.acc.split(':'), b = brandById(parts[0]), c = parts[1];
+        if (!box.checked && b.channels.length === 1) { box.checked = true; toast('Keep at least one account connected', b.name + ' needs a channel to plan content for.'); return; }
+        b.channels = Object.keys(CHANNELS).filter(function (k) { return k === c ? box.checked : b.channels.indexOf(k) !== -1; });
+        if (b === B) useBrand(b);
+        notify(CHANNELS[c] + (box.checked ? ' connected to ' : ' disconnected from ') + b.name, box.checked ? 'Results start syncing within a day.' : 'Past results stay in reports. New posts can\u2019t be scheduled there.', ['d:Social', 'd:Marketing'], false, b.id);
+      });
+    });
+    var be = $('#brands-export');
+    if (be) be.addEventListener('click', function () {
+      var lines = ['# ' + ENV.company + ' brand comparison, ' + addDays(TODAY, -30) + ' to ' + addDays(TODAY, -1),
+        ['Brand', 'Industry', 'Planned (next 14 days)', 'Gaps (next 14 days)', 'Posts (last 30 days)', 'Social reach', 'Engagement rate', 'Est. revenue (USD)', 'Connected accounts', 'People'].join(',')]
+        .concat(mine.map(function (b) {
+          var st = stats[b.id];
+          return [b.name, CSEnv.INDUSTRIES[b.industry].label, st.planned, st.gaps, st.posts, st.reach, (st.er * 100).toFixed(2) + '%', st.revenue == null ? '' : st.revenue.toFixed(2),
+            b.channels.map(function (c) { return CHANNELS[c]; }).join('; '), members(b).length].map(csvCell).join(',');
+        }));
+      download(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'campaign-span-brands-' + TODAY + '.csv');
+      toast('Brand comparison downloaded', mine.length + ' brands');
+    });
+    var bf = $('#brand-form');
+    if (bf) bf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var name = $('#nb-name').value.trim();
+      if (!name) { $('#nb-name').focus(); return; }
+      if (brands.some(function (b) { return b.name.toLowerCase() === name.toLowerCase(); })) { toast('There\u2019s already a brand called ' + name); return; }
+      var lead = people.find(function (p) { return p.dept === 'Marketing'; }) || people[0], access = {};
+      access[lead.id] = 'lead';
+      var b = addBrand({ name: name, industry: $('#nb-industry').value, color: $('#nb-color').value, channels: ['instagram', 'email'] }, 'empty', access);
+      notify('New brand: ' + b.name, lead.name + ' is brand lead. Connect its accounts and add people in Team.', [lead.id], false, b.id);
+      renderBrandPicker(); render();
+    });
   }
 
   // Calendar
@@ -380,7 +605,7 @@
       '<button class="btn btn-ghost btn-sm" type="button" data-cal="0">Today</button>' +
       '<span class="spacer"></span>' +
       '<span class="legend-note"><span class="legend-swatch"></span>Gap: 2+ days with nothing planned</span>' +
-      '<label class="sr-only" for="cal-channel">Channel</label><select id="cal-channel" aria-label="Filter by channel">' + opts + '</select>' +
+      '<label class="sr-only" for="cal-channel">Channel</label><select id="cal-channel" aria-label="Filter by channel" data-ro-ok>' + opts + '</select>' +
       '</div>';
     if (state.role !== 'all') h += '<p class="muted" style="font-size:.85rem;margin:-4px 0 10px">Showing entries tagged to <strong>' + esc(state.role) + '</strong>. Other entries are dimmed.</p>';
     h += '<div class="cal" id="cal">';
@@ -441,6 +666,7 @@
     var dragId = null;
     $$(itemSel).forEach(function (el) {
       el.addEventListener('dragstart', function (e) {
+        if (!canEdit()) { e.preventDefault(); return; }
         dragId = +el.dataset.id; el.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
         try { e.dataTransfer.setData('text/plain', String(dragId)); } catch (err) {}
@@ -677,7 +903,7 @@
           return '<tr><td><strong>' + niceTime(r.time) + '</strong></td><td>' + esc(r.item) + '</td><td>' + (p ? avatar(p) + ' ' + esc(p.name) : '<span class="muted">—</span>') + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
         '<form class="inline-form" id="sched-form"><input type="time" id="s-time" required aria-label="Time" value="16:30"><input type="text" id="s-item" placeholder="Add an activity…" required aria-label="Activity">' +
-        '<select id="s-owner" aria-label="Owner"><option value="">No owner</option>' + people.map(function (p) { return '<option value="' + p.id + '">' + esc(p.name) + '</option>'; }).join('') + '</select>' +
+        '<select id="s-owner" aria-label="Owner"><option value="">No owner</option>' + members().map(function (p) { return '<option value="' + p.id + '">' + esc(p.name) + '</option>'; }).join('') + '</select>' +
         '<button class="btn btn-primary btn-sm" type="submit">Add</button></form>';
     } else if (state.prodTab === 'callsheet') {
       var cs = project.callSheet.slice().sort(function (a, b) { return a.call.localeCompare(b.call) || a.name.localeCompare(b.name); });
@@ -685,7 +911,7 @@
       var crewCalls = active.filter(function (c) { return c.type === 'Crew'; }).map(function (c) { return c.call; }).sort();
       var lastWrap = active.map(function (c) { return c.wrap; }).sort().pop();
       var loc = (project.logistics.find(function (r) { return r[0] === 'Location'; }) || [])[1];
-      var missing = people.filter(function (pp) {
+      var missing = members().filter(function (pp) {
         return personActivities(pp.id).length && !project.callSheet.some(function (c) { return c.personId === pp.id; });
       });
       h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap"><div><h3>Call sheet \u00b7 ' + nice(project.shootDate, true) + '</h3>' +
@@ -713,7 +939,7 @@
             '<td><select data-cs-status="' + c.id + '" aria-label="Status for ' + esc(c.name) + '">' + ['Confirmed', 'Pending', 'Cancelled'].map(function (st) { return '<option' + (st === c.status ? ' selected' : '') + '>' + st + '</option>'; }).join('') + '</select></td>' +
             '<td><button class="icon-btn" type="button" data-cs-remove="' + c.id + '" aria-label="Remove ' + esc(c.name) + ' from the call sheet">\u2715</button></td></tr>';
         }).join('') + '</tbody></table></div>' +
-        '<form class="inline-form" id="cs-form"><input type="text" id="cs-name" placeholder="Name" required aria-label="Name" list="cs-people"><datalist id="cs-people">' + people.map(function (pp) { return '<option value="' + esc(pp.name) + '">'; }).join('') + '</datalist>' +
+        '<form class="inline-form" id="cs-form"><input type="text" id="cs-name" placeholder="Name" required aria-label="Name" list="cs-people"><datalist id="cs-people">' + members().map(function (pp) { return '<option value="' + esc(pp.name) + '">'; }).join('') + '</datalist>' +
         '<input type="text" id="cs-role" placeholder="Role (e.g. Gaffer)" aria-label="Role">' +
         '<select id="cs-type" aria-label="Type"><option>Crew</option><option>Talent</option><option>Client</option></select>' +
         '<input type="time" id="cs-call" value="' + (crewCalls[0] || '09:00') + '" aria-label="Call time"><input type="time" id="cs-wrap" value="' + (lastWrap || '17:00') + '" aria-label="Wrap time">' +
@@ -781,7 +1007,7 @@
       var name = $('#cs-name').value.trim(), call = $('#cs-call').value, wrap = $('#cs-wrap').value;
       if (!name) { $('#cs-name').focus(); return; }
       if (!call || !wrap || toMin(wrap) <= toMin(call)) { toast('Wrap must be after call time'); return; }
-      var match = people.find(function (pp) { return pp.name.toLowerCase() === name.toLowerCase(); });
+      var match = members().find(function (pp) { return pp.name.toLowerCase() === name.toLowerCase(); });
       project.callSheet.push({ id: csId++, personId: match ? match.id : '', name: match ? match.name : name, role: $('#cs-role').value.trim() || (match ? match.dept : 'Crew'),
         type: $('#cs-type').value, call: call, wrap: wrap, status: 'Confirmed' });
       notify('Added to call sheet: ' + name, 'Call ' + niceTime(call) + ', wrap ' + niceTime(wrap) + ' on ' + nice(project.shootDate), match ? [match.id, 'd:Production'] : ['d:Production']);
@@ -822,9 +1048,9 @@
     var h = '<div class="toolbar"><div class="pill-nav" style="margin:0">' + FOLDERS.map(function (f) {
       return '<button type="button" data-folder="' + esc(f) + '" aria-pressed="' + (state.fileFolder === f) + '">' + esc(f) + '</button>';
     }).join('') + '</div><span class="spacer"></span>' +
-      '<input type="search" id="file-q" placeholder="Search files…" aria-label="Search files" value="' + esc(state.fileQuery) + '" style="width:200px">' +
+      '<input type="search" id="file-q" placeholder="Search files…" aria-label="Search files" value="' + esc(state.fileQuery) + '" style="width:200px" data-ro-ok>' +
       '<label class="btn btn-primary btn-sm upload-label">Upload<input type="file" id="file-up" multiple></label></div>' +
-      '<p class="muted" style="font-size:.84rem;margin:0 0 10px">Project: Fall Lookbook Shoot. In demo mode, uploads stay in your browser and are never sent anywhere.</p>' +
+      '<p class="muted" style="font-size:.84rem;margin:0 0 10px">Project: ' + esc(project.name) + '. In demo mode, uploads stay in your browser and are never sent anywhere.</p>' +
       '<div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Folder</th><th class="num">Size</th><th>Owner</th><th>Updated</th></tr></thead><tbody>' +
       (list.length ? list.map(function (f) {
         var ext = (f.name.split('.').pop() || '').toLowerCase(), p = person(f.owner);
@@ -842,45 +1068,72 @@
       added.forEach(function (f) {
         files.push({ name: f.name, folder: state.fileFolder === 'All' ? 'Briefs' : state.fileFolder, size: f.size, owner: role('M'), updated: TODAY });
       });
-      if (added.length) notify(added.length + ' file' + (added.length > 1 ? 's' : '') + ' added to Fall Lookbook Shoot', added.map(function (f) { return f.name; }).join(', '), ['d:Production']);
+      if (added.length) notify(added.length + ' file' + (added.length > 1 ? 's' : '') + ' added to ' + project.name, added.map(function (f) { return f.name; }).join(', '), ['d:Production']);
       render();
     });
   }
 
   // Team
   function renderTeam() {
-    var h = '<div class="panels" style="margin-top:0">' +
+    var admin = isAdmin();
+    var cols = admin ? brands : myBrands(); // people only see the brands they can open
+    var h = (admin ? '' : '<div class="notice ro-note">Only workspace admins can change departments and notifications. Brand leads can change who has access to their brand.</div>') +
+      '<div class="panel" style="margin-bottom:16px"><h3>Brand access</h3><p class="sub">Choose which brands each person can open and what they can do there. Brand leads manage the brand and its people, editors plan and edit content, and viewers can look and export reports.</p>' +
+      '<div class="table-wrap"><table class="data-table access-table"><thead><tr><th>Person</th>' + cols.map(function (b) { return '<th><i class="brand-dot" style="--bc:' + esc(b.color) + '"></i>' + esc(b.name) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      people.map(function (p) {
+        return '<tr><td>' + avatar(p) + ' ' + esc(p.name) + '<small>' + esc(p.dept) + '</small></td>' + cols.map(function (b) {
+          var r = b.access[p.id] || '';
+          return '<td><select data-access="' + b.id + ':' + p.id + '" aria-label="' + esc(p.name + ' on ' + b.name) + '"' + (canManage(b) ? '' : ' disabled') + '>' +
+            '<option value=""' + (r ? '' : ' selected') + '>No access</option>' + Object.keys(ROLE_LABEL).map(function (k) { return '<option value="' + k + '"' + (r === k ? ' selected' : '') + '>' + ROLE_LABEL[k] + '</option>'; }).join('') + '</select></td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div></div>' +
+      '<div class="panels" style="margin-top:0">' +
       '<div class="panel"><h3>People &amp; department roles</h3><p class="sub">A department role decides which department notifications each person receives.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Department role</th></tr></thead><tbody>' +
       people.map(function (p) {
-        return '<tr><td>' + avatar(p) + ' ' + esc(p.name) + '</td><td><select data-person="' + p.id + '" aria-label="Department for ' + esc(p.name) + '">' +
+        return '<tr><td>' + avatar(p) + ' ' + esc(p.name) + '</td><td><select data-person="' + p.id + '" aria-label="Department for ' + esc(p.name) + '"' + (admin ? '' : ' disabled') + '>' +
           DEPTS.map(function (d) { return '<option' + (d === p.dept ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select></td></tr>';
       }).join('') + '</tbody></table></div></div>' +
       '<div class="panel"><h3>Department notifications</h3><p class="sub">Choose where each department hears about new projects, deadline changes and assignments.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Department</th><th class="num">Members</th><th>App</th><th>Email</th><th>Slack</th></tr></thead><tbody>' +
       DEPTS.map(function (d) {
         var s = state.deptSettings[d], count = people.filter(function (p) { return p.dept === d; }).length;
         return '<tr><td><strong>' + d + '</strong></td><td class="num">' + count + '</td>' + ['app', 'email', 'slack'].map(function (k) {
-          return '<td><label class="switch"><input type="checkbox" data-dept="' + d + '" data-ch="' + k + '"' + (s[k] ? ' checked' : '') + ' aria-label="' + d + ' ' + k + ' notifications"></label></td>';
+          return '<td><label class="switch"><input type="checkbox" data-dept="' + d + '" data-ch="' + k + '"' + (s[k] ? ' checked' : '') + (admin ? '' : ' disabled') + ' aria-label="' + d + ' ' + k + ' notifications"></label></td>';
         }).join('') + '</tr>';
       }).join('') + '</tbody></table></div><p class="chart-note">Slack posts to each department’s channel, e.g. #team-production.</p></div></div>';
     view.innerHTML = h;
     $$('[data-person]').forEach(function (s) {
       s.addEventListener('change', function () {
         var p = person(s.dataset.person), old = p.dept; p.dept = s.value;
+        if (state.viewer === p.id) state.role = p.dept;
         notify(p.name + ' joined ' + p.dept, 'Moved from ' + old + '. Now receives ' + p.dept + ' notifications.', [p.id, 'd:' + old]);
-        render();
+        fillViewerOptions(); render();
       });
     });
     $$('[data-dept]').forEach(function (c) {
       c.addEventListener('change', function () { state.deptSettings[c.dataset.dept][c.dataset.ch] = c.checked; });
     });
+    $$('[data-access]').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        var parts = sel.dataset.access.split(':'), b = brandById(parts[0]), p = person(parts[1]);
+        var old = b.access[p.id] || '', now = sel.value;
+        if (old === now) return;
+        if (old === 'lead' && now !== 'lead' && !people.some(function (x) { return x !== p && b.access[x.id] === 'lead'; })) {
+          sel.value = old; toast('Every brand needs a brand lead', 'Make someone else lead of ' + b.name + ' first.'); return;
+        }
+        if (now) b.access[p.id] = now; else delete b.access[p.id];
+        if (!old) notify('Added to ' + b.name, p.name + ' is now ' + ROLE_LABEL[now].toLowerCase() + ' on ' + b.name + '.', [p.id], false, b.id);
+        else if (!now) notify('Removed from ' + b.name, p.name + ' no longer has access to ' + b.name + '.', [p.id], false, b.id);
+        else notify('Role changed on ' + b.name, p.name + ': ' + ROLE_LABEL[old] + ' \u2192 ' + ROLE_LABEL[now], [p.id], false, b.id);
+        ensureBrand(); renderBell(); render();
+      });
+    });
   }
 
   // ---------- entry dialog ----------
   var dlg = $('#entry-dialog'), form = $('#entry-form'), editing = null;
-  $('#f-channel').innerHTML = ENABLED.map(function (c) { return '<option value="' + c + '">' + CHANNELS[c] + '</option>'; }).join('');
   $('#f-status').innerHTML = STATUSES.map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('');
   function fillTagChecks() {
-    $('#f-people').innerHTML = people.map(function (p) { return '<label><input type="checkbox" name="tag" value="' + p.id + '">' + esc(p.name) + '</label>'; }).join('');
+    $('#f-people').innerHTML = members().map(function (p) { return '<label><input type="checkbox" name="tag" value="' + p.id + '">' + esc(p.name) + '</label>'; }).join('');
     $('#f-depts').innerHTML = DEPTS.map(function (d) { return '<label><input type="checkbox" name="tag" value="d:' + d + '">#' + d + '</label>'; }).join('');
   }
   function openEntry(id, preset) {
@@ -888,7 +1141,11 @@
     var p = id != null ? posts.find(function (x) { return x.id === id; }) : null;
     editing = p;
     preset = preset || {};
-    $('#entry-dialog-title').textContent = p ? 'Edit calendar entry' : 'New calendar entry';
+    var ro = !canEdit();
+    // This brand's connected channels, plus a disconnected one an existing entry still uses
+    var chans = ENABLED.concat(p && ENABLED.indexOf(p.channel) === -1 ? [p.channel] : []);
+    $('#f-channel').innerHTML = chans.map(function (c) { return '<option value="' + c + '">' + CHANNELS[c] + '</option>'; }).join('');
+    $('#entry-dialog-title').textContent = ro ? 'Calendar entry \u00b7 ' + B.name : (p ? 'Edit calendar entry' : 'New calendar entry') + ' \u00b7 ' + B.name;
     $('#f-title').value = p ? p.title : '';
     $('#f-channel').value = p ? p.channel : (preset.channel || (state.calChannel !== 'all' ? state.calChannel : ENABLED[0]));
     $('#f-status').value = p ? p.status : 'idea';
@@ -898,7 +1155,9 @@
     var tags = p ? p.tags : (state.role !== 'all' ? ['d:' + state.role] : []);
     $$('input[name=tag]').forEach(function (c) { c.checked = tags.indexOf(c.value) !== -1; });
     $('#f-error').hidden = true; $('.tag-field').classList.remove('invalid');
-    $('#f-delete').hidden = !p;
+    $('#f-delete').hidden = !p || ro;
+    $('#f-save').hidden = ro;
+    $$('#entry-form input, #entry-form select, #entry-form textarea').forEach(function (el) { el.disabled = ro; });
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
     $('#f-title').focus();
   }
@@ -910,6 +1169,7 @@
   });
   form.addEventListener('submit', function (e) {
     e.preventDefault();
+    if (!canEdit()) return;
     var title = $('#f-title').value.trim(), date = $('#f-date').value;
     var tags = $$('input[name=tag]:checked').map(function (c) { return c.value; });
     var err = '';
@@ -942,7 +1202,7 @@
     if (!editing) return;
     var p = editing;
     if (!confirm('Delete “' + p.title + '”?')) return;
-    posts = posts.filter(function (x) { return x !== p; });
+    posts = B.posts = posts.filter(function (x) { return x !== p; });
     notify('Entry removed: ' + p.title, 'Was planned for ' + nice(p.date), p.tags);
     closeEntry(); render();
   });
@@ -956,10 +1216,18 @@
   });
   $('#new-entry').addEventListener('click', function () { openEntry(null); });
 
+  function fillViewerOptions() {
+    $('#role-people').innerHTML = people.map(function (p) { return '<option value="u:' + p.id + '"' + (state.viewer === p.id ? ' selected' : '') + '>' + esc(p.name) + ' (' + esc(p.dept) + ')</option>'; }).join('');
+  }
   $('#role-select').addEventListener('change', function (e) {
-    state.role = e.target.value;
-    renderBell(); renderNotifs(); render();
-    toast('Viewing as ' + (state.role === 'all' ? 'Admin' : state.role), state.role === 'all' ? 'Showing every department.' : 'Notifications and entries are filtered to ' + state.role + '.');
+    var v = e.target.value;
+    if (v.indexOf('u:') === 0) { state.viewer = v.slice(2); state.role = person(state.viewer).dept; }
+    else { state.viewer = null; state.role = v; }
+    ensureBrand(); renderBell(); renderNotifs(); render();
+    if (state.viewer) {
+      var mine = myBrands(), p = person(state.viewer);
+      toast('Viewing as ' + p.name, mine.length ? mine.map(function (b) { return b.name + ' (' + ROLE_LABEL[b.access[p.id]] + ')'; }).join(', ') : 'Not assigned to any brand yet.');
+    } else toast('Viewing as ' + (state.role === 'all' ? 'workspace admin' : state.role), state.role === 'all' ? 'Showing every brand and department.' : 'Notifications and entries are filtered to ' + state.role + '.');
   });
 
   function renderBell() {
@@ -975,8 +1243,9 @@
   function renderNotifs() {
     var list = visibleNotifs();
     $('#notif-list').innerHTML = list.length ? list.map(function (n) {
-      return '<div class="notif' + (n.unread ? ' unread' : '') + '"><b>' + esc(n.title) + '</b><span>' + esc(n.detail) + '</span><small>' + esc(n.who) + ' · ' + ago(n.at) + '</small><span class="via">Sent via ' + esc(n.via) + '</span></div>';
-    }).join('') : '<p class="empty">No notifications for ' + esc(state.role) + ' yet.</p>';
+      var b = brandById(n.brand);
+      return '<div class="notif' + (n.unread ? ' unread' : '') + '">' + (brands.length > 1 && b ? '<span class="nb"><i class="brand-dot" style="--bc:' + esc(b.color) + '"></i>' + esc(b.name) + '</span>' : '') + '<b>' + esc(n.title) + '</b><span>' + esc(n.detail) + '</span><small>' + esc(n.who) + ' · ' + ago(n.at) + '</small><span class="via">Sent via ' + esc(n.via) + '</span></div>';
+    }).join('') : '<p class="empty">No notifications for ' + esc(state.viewer ? person(state.viewer).name : state.role === 'all' ? 'admins' : state.role) + ' yet.</p>';
   }
   // Notifications panel: docks beside the content on wide screens; drag its left edge (or use arrow keys) to resize
   var notifPanel = $('#notif-panel'), appEl = $('.app'), notifHandle = $('#notif-resize');
@@ -1072,20 +1341,21 @@
       };
     });
   }
+  function slug(name) { return name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'brand'; }
   function csvCell(v) { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   function exportMoneyCsv() {
     if (!MONEY_CHANNELS.length) { toast('No monetized channels connected', 'Connect YouTube, Facebook, Instagram, TikTok or X to report revenue.'); return; }
     var from = addDays(TODAY, -30), mon = monetization(from, TODAY);
     var head = ['Channel', 'Programs', 'Published posts', 'Monetized posts', 'Monetized views', 'Est. revenue (USD)', 'RPM (USD)']
       .concat(REV_SOURCES.map(function (src) { return src[1] + ' (USD)'; }));
-    var lines = ['# ' + ENV.company + ' monetization, ' + from + ' to ' + addDays(TODAY, -1) + '. Estimates in USD; platforms may revise figures.', head.join(',')]
+    var lines = ['# ' + B.name + ' monetization, ' + from + ' to ' + addDays(TODAY, -1) + '. Estimates in USD; platforms may revise figures.', head.join(',')]
       .concat(mon.rows.map(function (r) {
         return [CHANNELS[r.channel], MONETIZATION[r.channel].programs, r.posts, r.monetized, r.views, r.revenue.toFixed(2), r.views ? r.rpm.toFixed(2) : '']
           .concat(REV_SOURCES.map(function (src) { return r.src[src[0]].toFixed(2); })).map(csvCell).join(',');
       }))
       .concat([['Total', '', mon.rows.reduce(function (t, r) { return t + r.posts; }, 0), mon.total.monetized, mon.total.views, mon.total.revenue.toFixed(2), mon.total.views ? mon.total.rpm.toFixed(2) : '']
         .concat(REV_SOURCES.map(function (src) { return mon.rows.reduce(function (t, r) { return t + r.src[src[0]]; }, 0).toFixed(2); })).map(csvCell).join(',')]);
-    download(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'campaign-span-monetization-' + TODAY + '.csv');
+    download(new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'campaign-span-' + slug(B.name) + '-monetization-' + TODAY + '.csv');
     toast('Monetization CSV exported', money(mon.total.revenue) + ' estimated across ' + mon.rows.length + ' channel' + (mon.rows.length === 1 ? '' : 's'));
   }
   function exportCsv() {
@@ -1096,7 +1366,7 @@
         r.monetized, r.revenue === '' ? '' : r.revenue.toFixed(2), r.rpm === '' ? '' : r.rpm.toFixed(2)]
         .concat(REV_SOURCES.map(function (src) { return r.src ? r.src[src[0]].toFixed(2) : ''; })).map(csvCell).join(',');
     }));
-    download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'campaign-span-calendar-' + TODAY + '.csv');
+    download(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'campaign-span-' + slug(B.name) + '-calendar-' + TODAY + '.csv');
     toast('CSV exported', posts.length + ' calendar entries');
   }
   function loadScript(src) {
@@ -1133,7 +1403,7 @@
         ws.mergeCells('A1:' + span + '1');
         var t = ws.getCell('A1'); t.value = text; t.font = { bold: true, size: 16, color: { argb: 'FF820263' } };
         ws.getRow(1).height = 28;
-        var s = ws.getCell('A2'); s.value = ENV.company + ' · ' + nice(from) + ' – ' + nice(addDays(TODAY, -1)) + ' · Generated ' + new Date().toLocaleString('en-US');
+        var s = ws.getCell('A2'); s.value = B.name + ' · ' + nice(from) + ' – ' + nice(addDays(TODAY, -1)) + ' · Generated ' + new Date().toLocaleString('en-US');
         s.font = { italic: true, color: { argb: 'FF5E5C70' } };
       }
 
@@ -1240,7 +1510,7 @@
 
       return wb.xlsx.writeBuffer();
     }).then(function (buf) {
-      download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'campaign-span-report-' + TODAY + '.xlsx');
+      download(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'campaign-span-' + slug(B.name) + '-report-' + TODAY + '.xlsx');
       toast('Excel report exported', 'Summary, By channel, Monetization and Calendar sheets');
     }).catch(function () {
       toast('Couldn’t load the Excel builder', 'Exporting CSV instead.');
@@ -1251,7 +1521,6 @@
   // ---------- environment branding ----------
   (function () {
     $('.ws-name strong').textContent = ENV.company;
-    $('.ws-name small').textContent = ENV.purpose === 'onboarding' ? 'Onboarding workspace' : 'Demo workspace';
     $('.ws-dot').style.background = ENV.color;
     if (CSEnv.fromUrl()) document.title = ENV.company + ' · Campaign Span demo';
     if (ENV.banner) $('.demo-banner span').textContent = ENV.banner;
@@ -1267,6 +1536,9 @@
     render();
   }
   window.addEventListener('hashchange', route);
+  $('#brand-select').addEventListener('change', function (e) { switchBrand(e.target.value); });
+  fillViewerOptions();
+  renderBrandPicker();
   route();
   renderBell();
 })();

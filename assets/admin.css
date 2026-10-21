@@ -21,6 +21,8 @@
 .team-row { display: grid; grid-template-columns: minmax(0, 1fr) 170px 36px; gap: 8px; align-items: center; }
 .team-row input, .team-row select { padding: 8px 10px; font-size: .9rem; }
 .team-row .icon-btn { width: 36px; height: 36px; }
+.brand-row { grid-template-columns: minmax(0, 1fr) 190px 44px 36px; }
+.brand-row input[type=color] { width: 44px; height: 38px; padding: 2px; }
 input[type=color] { width: 52px; height: 40px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
 .field-error { color: var(--danger); font-size: .82rem; font-weight: 600; }
 .input-invalid { border-color: var(--danger) !important; }
@@ -67,6 +69,8 @@ pre.code { background: var(--surface-2); border: 1px solid var(--border); border
 @media (max-width: 640px) {
   .team-row { grid-template-columns: minmax(0, 1fr) 36px; }
   .team-row select { grid-column: 1; grid-row: 2; }
+  .brand-row { grid-template-columns: minmax(0, 1fr) 44px 36px; }
+  .brand-row select { grid-column: 1 / -1; }
   .check-row { grid-template-columns: 1fr; gap: 6px; }
   .log div { flex-direction: column; gap: 2px; }
 }

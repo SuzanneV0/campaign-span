@@ -359,7 +359,7 @@
     });
     if (Array.isArray(parsed.people) && parsed.people.length !== norm.people.length) notes.push((parsed.people.length - norm.people.length) + ' team member(s) were invalid and skipped');
     var match = store.envs.find(function (e) { return E.encode(e.cfg) === E.encode(norm); });
-    out.innerHTML = '<p class="notice ok" style="margin-top:10px"><strong>Valid link.</strong> Opens <strong>' + esc(norm.company) + '</strong> (' + PURPOSE[norm.purpose] + ', ' + esc(E.INDUSTRIES[norm.industry].label) + ', ' + DATA_LABEL[norm.data].toLowerCase() + ' data, ' + norm.people.length + ' people, ' + norm.channels.length + ' channels).' +
+    out.innerHTML = '<p class="notice ok" style="margin-top:10px"><strong>Valid link.</strong> Opens <strong>' + esc(norm.company) + '</strong> (' + PURPOSE[norm.purpose] + ', ' + esc(E.INDUSTRIES[norm.industry].label) + ', ' + DATA_LABEL[norm.data].toLowerCase() + ' data, ' + norm.people.length + ' people, ' + norm.channels.length + ' channels, ' + (norm.brands.length + 1) + ' brand' + (norm.brands.length ? 's' : '') + ' on ' + E.PLANS[norm.plan].label + ').' +
       (match ? ' Matches your saved environment “' + esc(match.name) + '”.' : '') + '</p>' +
       (notes.length ? '<ul class="muted" style="font-size:.85rem;margin:8px 0 0;padding-left:18px">' + notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '') +
       '<pre class="code">' + esc(JSON.stringify(norm, null, 2)) + '</pre>' +
@@ -505,13 +505,30 @@
       '<button type="button" class="icon-btn" data-remove-row aria-label="Remove team member">✕</button></div>';
   }
 
+  // Extra brands beyond the client company. Channels ride along unchanged so edits don't reset them.
+  function brandRow(b) {
+    return '<div class="team-row brand-row" data-channels="' + esc((b.channels || []).join(',')) + '"><input type="text" name="b-name" value="' + esc(b.name) + '" placeholder="Brand name" aria-label="Brand name" maxlength="60">' +
+      '<select name="b-industry" aria-label="Brand industry">' + Object.keys(E.INDUSTRIES).map(function (k) { return '<option value="' + k + '"' + (k === b.industry ? ' selected' : '') + '>' + esc(E.INDUSTRIES[k].label) + '</option>'; }).join('') + '</select>' +
+      '<input type="color" name="b-color" value="' + esc(b.color) + '" aria-label="Brand colour">' +
+      '<button type="button" class="icon-btn" data-remove-brand aria-label="Remove brand">✕</button></div>';
+  }
+  function brandLimit() {
+    var plan = E.PLANS[$('#f-plan').value] || E.PLANS.business;
+    var max = Math.min(plan.brands, 10) - 1, n = $$('#f-brands .brand-row').length;
+    $('#add-brand').disabled = n >= max;
+    $('#brand-limit').textContent = plan.brands === Infinity ? 'Enterprise demos can show up to 10 brands.' :
+      plan.label + ' includes ' + plan.brands + ' brand' + (plan.brands === 1 ? '' : 's') + ', counting the client company.' + (n > max ? ' Extra brands beyond that are dropped from the link.' : '');
+  }
+
   function openEditor(id, preset) {
     editing = id ? envById(id) : null;
     var cfg = editing ? E.normalize(editing.cfg) : defaults();
+    // The sample brands belong to the standard Northwind demo; a client demo starts with just the client
+    if (!editing && !store.defaults) cfg.brands = [];
     if (!editing && preset) {
       cfg.purpose = preset;
       cfg.data = preset === 'onboarding' ? 'empty' : 'full';
-      if (preset === 'onboarding') cfg.people = [{ name: '', dept: 'Marketing' }];
+      if (preset === 'onboarding') { cfg.people = [{ name: '', dept: 'Marketing' }]; cfg.brands = []; }
     }
     var meta = editing || { name: '', followUp: '', notes: '' };
     $('#env-dialog-title').textContent = editing ? 'Edit environment' : (cfg.purpose === 'onboarding' ? 'New onboarding workspace' : 'New sales demo');
@@ -532,6 +549,10 @@
       '<div class="form-section"><h3>Channels</h3><p class="sub">Only these appear in the calendar, analytics and filters.</p><div class="check-grid" id="f-channels">' +
       Object.keys(E.CHANNELS).map(function (c) { return '<label><input type="checkbox" name="f-ch" value="' + c + '"' + (cfg.channels.indexOf(c) !== -1 ? ' checked' : '') + '>' + E.CHANNELS[c] + '</label>'; }).join('') +
       '</div><p class="field-error" id="err-ch" hidden>Pick at least one channel.</p></div>' +
+      '<div class="form-section"><h3>Plan and brands</h3><p class="sub">The client company is the first brand. Each extra brand gets its own calendar, production project, connected accounts and analytics in the demo.</p>' +
+      '<div class="field" style="max-width:260px"><label for="f-plan">Plan</label><select id="f-plan">' + Object.keys(E.PLANS).map(function (k) { return '<option value="' + k + '"' + (k === cfg.plan ? ' selected' : '') + '>' + E.PLANS[k].label + '</option>'; }).join('') + '</select></div>' +
+      '<div class="team-rows" id="f-brands">' + cfg.brands.map(brandRow).join('') + '</div>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="add-brand" style="margin-top:10px">+ Add brand</button><p class="sub" id="brand-limit" style="margin:8px 0 0"></p></div>' +
       '<div class="form-section"><h3>Team</h3><p class="sub">Use the client’s real team so they see their own names on the board and in notifications.</p><div class="team-rows" id="f-team">' +
       cfg.people.map(teamRow).join('') + '</div><button type="button" class="btn btn-ghost btn-sm" id="add-person" style="margin-top:10px">+ Add person</button><p class="field-error" id="err-team" hidden>Add at least one team member with a name.</p></div>' +
       '<div class="form-section"><h3>Notification defaults</h3><p class="sub">Where each department hears about new projects and deadline changes.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Department</th><th>App</th><th>Email</th><th>Slack</th></tr></thead><tbody>' +
@@ -550,6 +571,16 @@
       $('#f-team').insertAdjacentHTML('beforeend', teamRow({ name: '', dept: 'Social' }));
       var rows = $$('#f-team .team-row'); rows[rows.length - 1].querySelector('input').focus(); updateSize();
     });
+    $('#add-brand').addEventListener('click', function () {
+      $('#f-brands').insertAdjacentHTML('beforeend', brandRow({ name: '', industry: $('#f-industry').value, color: '#0B7C77', channels: [] }));
+      var rows = $$('#f-brands .brand-row'); rows[rows.length - 1].querySelector('input').focus(); brandLimit(); updateSize();
+    });
+    $('#f-brands').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-remove-brand]');
+      if (b) { b.closest('.brand-row').remove(); brandLimit(); updateSize(); }
+    });
+    $('#f-plan').addEventListener('change', brandLimit);
+    brandLimit();
     $('#f-team').addEventListener('click', function (e) {
       var b = e.target.closest('[data-remove-row]');
       if (b && $$('#f-team .team-row').length > 1) { b.closest('.team-row').remove(); updateSize(); }
@@ -582,7 +613,12 @@
       people: $$('#f-team .team-row').map(function (r) { return { name: r.querySelector('input').value.trim(), dept: r.querySelector('select').value }; }).filter(function (p) { return p.name; }),
       notify: notify,
       banner: $('#f-banner').value.trim(),
-      excel: $('#f-excel').checked
+      excel: $('#f-excel').checked,
+      plan: $('#f-plan').value,
+      brands: $$('#f-brands .brand-row').map(function (r) {
+        return { name: r.querySelector('[name=b-name]').value.trim(), industry: r.querySelector('[name=b-industry]').value, color: r.querySelector('[name=b-color]').value,
+          channels: (r.dataset.channels || '').split(',').filter(Boolean) };
+      }).filter(function (b) { return b.name; })
     };
   }
   function updateSize() {

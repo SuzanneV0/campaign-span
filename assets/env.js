@@ -160,8 +160,24 @@
     ],
     notify: { Production: 'aes', Social: 'aes', 'Brand services': 'aes', Sales: 'ae', Marketing: 'aes' },
     banner: '',
-    excel: true
+    excel: true,
+    plan: 'business',
+    // More brands in the same workspace. The first brand is always the company above.
+    brands: [
+      { name: 'Northwind Café', industry: 'food', color: '#0B7C77', channels: ['instagram', 'tiktok', 'facebook', 'pinterest', 'email'] },
+      { name: 'Northwind Foundation', industry: 'nonprofit', color: '#6B4FA0', channels: ['instagram', 'facebook', 'linkedin', 'youtube', 'email'] }
+    ]
   };
+
+  // Brands each plan includes (Infinity = unlimited)
+  var PLANS = {
+    starter: { label: 'Starter', brands: 1 },
+    team: { label: 'Team', brands: 2 },
+    business: { label: 'Business', brands: 5 },
+    enterprise: { label: 'Enterprise', brands: Infinity }
+  };
+  // What each brand role can do. Workspace admins can do everything on every brand.
+  var BRAND_ROLES = { lead: 'Brand lead', editor: 'Editor', viewer: 'Viewer' };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
@@ -188,6 +204,22 @@
     }
     if (typeof cfg.banner === 'string') out.banner = cfg.banner.slice(0, 140);
     if (typeof cfg.excel === 'boolean') out.excel = cfg.excel;
+    if (PLANS[cfg.plan]) out.plan = cfg.plan;
+    // Links made before brands existed have none, so they stay single-brand rather than picking up the sample brands
+    out.brands = [];
+    if (Array.isArray(cfg.brands)) {
+      out.brands = cfg.brands.filter(function (b) { return b && typeof b.name === 'string' && b.name.trim(); }).slice(0, 9).map(function (b) {
+        var ch = Array.isArray(b.channels) ? b.channels.filter(function (c) { return CHANNELS[c]; }) : [];
+        return {
+          name: b.name.trim().slice(0, 60),
+          industry: INDUSTRIES[b.industry] ? b.industry : out.industry,
+          color: /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : out.color,
+          channels: ch.length ? ch : out.channels.slice()
+        };
+      });
+    }
+    // The plan caps how many brands a workspace has (the company counts as one)
+    out.brands = out.brands.slice(0, Math.max(0, Math.min(PLANS[out.plan].brands, 10) - 1));
     return out;
   }
 
@@ -208,7 +240,7 @@
   }
 
   window.CSEnv = {
-    DEPTS: DEPTS, CHANNELS: CHANNELS, INDUSTRIES: INDUSTRIES, KIT: KIT,
+    DEPTS: DEPTS, CHANNELS: CHANNELS, INDUSTRIES: INDUSTRIES, KIT: KIT, PLANS: PLANS, BRAND_ROLES: BRAND_ROLES,
     DEFAULT: DEFAULT, normalize: normalize, encode: encode, decode: decode, fromUrl: fromUrl, clone: clone
   };
 })();

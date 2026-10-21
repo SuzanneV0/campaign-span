@@ -393,6 +393,7 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: 
 tr:last-child td { border-bottom: 0; }
 td.yes { color: var(--ok); font-weight: 700; }
 td.tbd { color: var(--warn); font-weight: 600; }
+.brand-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
 .shot-note { font-size: .8rem; color: var(--faint); text-align: center; padding: 8px 12px 10px; border-top: 1px solid var(--border); }
 td.no { color: var(--faint); }
 

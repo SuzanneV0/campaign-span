@@ -4,9 +4,9 @@ Static marketing website and interactive demo for **Campaign Span**, a content m
 
 ## Current status and scope
 
-**This repository contains a marketing website and interactive product demo, not a complete production SaaS application.** The demo uses sample data in the browser and resets on reload. Public product log-in/sign-up forms are not connected to a backend; the separate admin console has its own authenticated API and storage.
+**This repository contains a marketing website and interactive product demo, not a complete production SaaS application.** The demo uses sample data in the browser and resets on reload. Product accounts don't exist yet, so the site collects an early-access waitlist instead; the admin console has its own authenticated API and storage.
 
-Pricing, testimonial-style quotes, and product imagery include placeholders. See the launch checklist below for details.
+Product images on the home page are HTML mockups, labelled as previews. See the launch checklist below.
 
 **[Explore the live site and demo](https://campaign-span.vercel.app)**
 
@@ -20,7 +20,7 @@ Pricing, testimonial-style quotes, and product imagery include placeholders. See
 | Integrations | `integrations.html` |
 | Pricing | `pricing.html` |
 | Demo mode (interactive sample workspace) | `demo.html` |
-| Log in / Sign up | `login.html` |
+| Early-access waitlist (replaces log in / sign up until launch) | `login.html` |
 | About us | `about.html` |
 | Terms of service, Privacy policy, Cookie policy, Legal notice | `terms.html`, `privacy.html`, `cookies.html`, `legal.html` |
 | Admin console (not linked from the site, `noindex`) | `admin.html` |
@@ -47,13 +47,15 @@ The header and footer for every page come from `assets/site.js`. The dark/light 
 - **Demo environments**: build a tailored demo (company, industry, brand colour, channels, the client's own team, notification defaults, banner, sample-data level) and share it as a link. The whole configuration travels inside the link (`demo.html?env=…`, defined in `assets/env.js`), so it works on any device with no server.
 - **Client onboarding**: empty workspaces with a 9-step onboarding checklist and progress tracking.
 - **Troubleshooting**: live health checks (pages, scripts, CDNs, browser support), a demo-link inspector, and browser details to collect from clients.
+- **Waitlist**: everyone who joined the early-access waitlist, with search, CSV export and removal (for privacy requests).
 - **Service settings**: defaults for new environments, links to hosting/code/DNS, and an activity log.
 
 **Sign-in and storage** use Clerk and Turso, through a small API in `api/` that runs as Vercel Functions:
 
 - Admins sign in with Clerk (the sign-in box on `admin.html`). The page asks `/api/config` for the Clerk publishable key, which is public by design.
 - `/api/admin` checks the Clerk session on every request and only lets in users with a verified email listed in the `ADMIN_EMAILS` setting; everyone else sees "no admin access". The browser never talks to the database directly.
-- Environments, onboarding progress, settings and the activity log live in the `admin_environments`, `admin_settings` and `admin_log` tables in Turso, shared by all admins. The tables are created automatically on first use.
+- Environments, onboarding progress, settings and the activity log live in the `admin_environments`, `admin_settings` and `admin_log` tables in Turso, shared by all admins. Waitlist sign-ups go to the `waitlist` table through the public `/api/waitlist` endpoint (no sign-in; a hidden honeypot field filters out simple bots). The tables are created automatically on first use.
+- Saves send only the environments that changed. If another admin saved a newer version of the same environment in the meantime, theirs is kept and you're asked to reload.
 
 Settings (Vercel → Settings → Environment Variables): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, and `ADMIN_EMAILS` (comma-separated).
 
@@ -69,9 +71,20 @@ npx http-server . -p 5180 -c-1
 
 Then open http://localhost:5180. The admin console also needs its API, so run it with `npx vercel dev` (after `npm install`) and the settings above in `.env.local`.
 
-## Placeholders to replace before launch
+## Checks
 
-- Pricing tiers and amounts in `pricing.html`
-- Testimonial-style quotes in `roles.html`
-- Log in / Sign up forms aren't connected to any backend yet
-- "Screenshots" are HTML mockups; swap them for real product captures when the app exists
+```bash
+npm install
+npm run check   # syntax-check the API
+npm test        # demo-link encoding, broken links and assets on every page, script parsing
+```
+
+GitHub Actions runs both on every push to `main` and on pull requests (`.github/workflows/ci.yml`).
+
+## Before launch
+
+- **Pricing** (`pricing.html`): Starter $10 / Team $12 / Business $21 per user per month, or $8 / $10 / $17 billed annually. Set in October 2026 to come in under monday.com's matching tiers (Basic $12 / Standard $14 / Pro $24 monthly, $9 / $12 / $19 annually). Recheck against monday.com before launch.
+- **Accounts**: `login.html` is a waitlist until the app exists. Replace it with real log in / sign up, and switch the "Join the waitlist" buttons in `assets/site.js`, `pricing.html` and `demo.html` back.
+- **Product images**: the home page "screenshots" are HTML mockups captioned "Product preview". Swap them for real captures.
+- **Mobile**: four features are marked "Planned" for iOS and Android in `features.html`. Update once decided.
+- **Customer quotes**: `roles.html` uses plain benefit statements. Add real customer quotes only with names and permission.

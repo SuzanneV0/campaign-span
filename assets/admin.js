@@ -45,10 +45,13 @@
   var me = null; // signed-in admin's email
 
   // ---------- storage ----------
-  var store = { envs: [], log: [], defaults: null };
+  var store = { envs: [], log: [], defaults: null, waitlist: [] };
   var storageOk = true;
   try { localStorage.setItem('cs-check', '1'); localStorage.removeItem('cs-check'); } catch (e) { storageOk = false; }
   var pendingDeletes = [], saveTimer = null, saving = Promise.resolve();
+  // What the server last confirmed, so a save only sends what changed and can't overwrite
+  // another admin's edits to environments this admin didn't touch.
+  var synced = {}, syncedDefaults = 'null';
 
   function toRow(e) {
     return { id: e.id, name: e.name, cfg: e.cfg, follow_up: e.followUp || null, notes: e.notes || '', steps: e.steps || {}, opened: e.opened || 0,
@@ -64,14 +67,33 @@
       store.envs = data.envs.map(fromRow);
       store.log = data.log.map(function (l) { return { at: Date.parse(l.at), msg: l.msg, actor: l.actor }; });
       store.defaults = data.defaults;
+      store.waitlist = data.waitlist || [];
+      synced = {};
+      data.envs.forEach(function (r, i) { synced[r.id] = JSON.stringify(toRow(store.envs[i])); });
+      syncedDefaults = JSON.stringify(store.defaults);
     });
   }
-  // Writes are batched: every change calls save(), which upserts the environments shortly after.
+  // Writes are batched: every change calls save(), which sends the changed environments shortly after.
   function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 250); }
   function flush() {
     if (!me) return;
-    saving = api('POST', { action: 'save', envs: store.envs.map(toRow), deletes: pendingDeletes.splice(0), defaults: store.defaults })
-      .catch(function (err) { toast('Couldn\u2019t save changes', err.message + ' Check your connection and try again.'); });
+    var rows = store.envs.map(toRow).filter(function (r) { return synced[r.id] !== JSON.stringify(r); });
+    var deletes = pendingDeletes.splice(0);
+    var defaults = JSON.stringify(store.defaults);
+    if (!rows.length && !deletes.length && defaults === syncedDefaults) return saving;
+    var body = { action: 'save', envs: rows, deletes: deletes };
+    if (defaults !== syncedDefaults) body.defaults = store.defaults;
+    saving = api('POST', body).then(function (res) {
+      rows.forEach(function (r) { synced[r.id] = JSON.stringify(r); });
+      deletes.forEach(function (id) { delete synced[id]; });
+      syncedDefaults = defaults;
+      if (res.stale && res.stale.length) {
+        toast('Another admin changed this too', 'Their newer version was kept. Reload to see it.');
+      }
+    }).catch(function (err) {
+      pendingDeletes.push.apply(pendingDeletes, deletes);
+      toast('Couldn\u2019t save changes', err.message + ' Check your connection and try again.');
+    });
     return saving;
   }
   function log(msg) {
@@ -114,13 +136,13 @@
 
   // ---------- views ----------
   var view = $('#view');
-  var TITLES = { overview: 'Overview', environments: 'Demo environments', onboarding: 'Client onboarding', troubleshoot: 'Troubleshooting', service: 'Service settings' };
+  var TITLES = { overview: 'Overview', environments: 'Demo environments', onboarding: 'Client onboarding', waitlist: 'Waitlist', troubleshoot: 'Troubleshooting', service: 'Service settings' };
   var current = 'overview';
 
   function render() {
     $('#view-title').textContent = TITLES[current];
     $$('.app-nav a').forEach(function (a) { if (a.dataset.view === current) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
-    ({ overview: renderOverview, environments: renderEnvs, onboarding: renderOnboarding, troubleshoot: renderTroubleshoot, service: renderService })[current]();
+    ({ overview: renderOverview, environments: renderEnvs, onboarding: renderOnboarding, waitlist: renderWaitlist, troubleshoot: renderTroubleshoot, service: renderService })[current]();
   }
 
   function envActions(env) {
@@ -244,6 +266,52 @@
   var PAGES = ['index.html', 'features.html', 'roles.html', 'integrations.html', 'pricing.html', 'demo.html', 'login.html',
     'about.html', 'terms.html', 'privacy.html', 'cookies.html', 'legal.html'];
   var ASSETS = ['assets/styles.css', 'assets/site.js', 'assets/env.js', 'assets/demo.js', 'assets/demo.css', 'assets/favicon.svg'];
+
+  // Sign-ups from the public waitlist form (login.html → /api/waitlist)
+  function csvCell(v) { v = String(v == null ? '' : v); return /^[=+\-@]/.test(v) ? "'" + v : v; }
+  function renderWaitlist() {
+    var list = store.waitlist;
+    var week = list.filter(function (w) { return Date.now() - Date.parse(w.at) < 7 * 864e5; }).length;
+    var h = '<div class="kpi-row">' +
+      '<div class="kpi-tile"><small>On the waitlist</small><strong>' + list.length + '</strong></div>' +
+      '<div class="kpi-tile"><small>Joined this week</small><strong>' + week + '</strong></div></div>' +
+      '<div class="toolbar"><input type="search" id="wl-q" placeholder="Search the waitlist…" aria-label="Search the waitlist" style="width:240px">' +
+      '<span class="spacer"></span><button class="btn btn-ghost btn-sm" type="button" id="wl-export"' + (list.length ? '' : ' disabled') + '>Export CSV</button></div>';
+    if (!list.length) {
+      h += '<div class="panel"><p class="empty">No one has joined yet.<br>Sign-ups from the <a href="login.html" target="_blank" rel="noopener">waitlist page</a> show up here.</p></div>';
+    } else {
+      h += '<div class="table-wrap"><table class="data-table" id="wl-table"><thead><tr><th>Person</th><th>Company</th><th>Department</th><th>Team size</th><th>Joined</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+        list.map(function (w) {
+          return '<tr data-row="' + esc((w.name + ' ' + w.email + ' ' + w.company).toLowerCase()) + '"><td class="env-name">' + esc(w.name || '—') + '<small>' + esc(w.email) + '</small></td>' +
+            '<td>' + esc(w.company || '—') + '</td><td>' + esc(w.dept || '—') + '</td><td>' + esc(w.teamSize || '—') + '</td><td>' + when(Date.parse(w.at)) + '</td>' +
+            '<td><div class="row-actions"><button class="btn btn-ghost danger-text" type="button" data-wl-del="' + esc(w.email) + '">Remove</button></div></td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    view.innerHTML = h;
+    var q = $('#wl-q');
+    q.addEventListener('input', function () {
+      var v = q.value.toLowerCase();
+      $$('#wl-table tbody tr').forEach(function (tr) { tr.hidden = v && tr.dataset.row.indexOf(v) === -1; });
+    });
+    $('#wl-export').addEventListener('click', function () {
+      var rows = [['Email', 'Name', 'Company', 'Department', 'Team size', 'Joined']].concat(list.map(function (w) { return [w.email, w.name, w.company, w.dept, w.teamSize, w.at]; }));
+      download('campaign-span-waitlist-' + today() + '.csv', rows.map(function (r) {
+        return r.map(function (c) { return '"' + csvCell(c).replace(/"/g, '""') + '"'; }).join(',');
+      }).join('\r\n'), 'text/csv');
+      log('Exported the waitlist (' + list.length + ' people)');
+    });
+    $$('[data-wl-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var email = b.dataset.wlDel;
+        if (!confirm('Remove ' + email + ' from the waitlist? This can\u2019t be undone.')) return;
+        api('POST', { action: 'waitlist-remove', email: email }).then(function () {
+          store.waitlist = store.waitlist.filter(function (w) { return w.email !== email; });
+          log('Removed a person from the waitlist');
+          renderWaitlist();
+        }, function (err) { toast('Couldn\u2019t remove them', err.message); });
+      });
+    });
+  }
 
   function renderTroubleshoot() {
     view.innerHTML = '<div class="panels" style="margin-top:0">' +
